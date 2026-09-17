@@ -1,3 +1,5 @@
+import {Client} from '@modelcontextprotocol/client';
+import {StdioClientTransport} from '@modelcontextprotocol/client/stdio';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -20,6 +22,11 @@ try {
  const entity=snapshot.entities.find(e=>e.id==='showcase-basics');
  await request('/api/batch',{projectId:project.id,requestId:'release-persist',summary:'发行包持久化验收',operations:[{op:'update',id:entity.id,expectedVersion:entity.version,patch:{body:'restart persistence verified'}}]});
  const runtime=await request('/api/runtime');assert.ok(runtime.mcp.args.every(a=>typeof a==='string'));assert.equal(runtime.workspace,root);
+ const client=new Client({name:'release-smoke',version:'1'});
+ try { await client.connect(new StdioClientTransport({command:process.execPath,args:['--import',path.join(root,'node_modules/tsx/dist/loader.mjs'),path.join(root,'server/mcp.ts')],env:{PATH:process.env.PATH,AGENTCANVAS_URL:base,AGENTCANVAS_DATA_DIR:data},stderr:'pipe'}));
+ assert.ok((await client.listTools()).tools.some(t=>t.name==='read_canvas'));
+ const result=await client.callTool({name:'read_canvas',arguments:{projectId:project.id,canvasId:project.rootCanvasId}});assert.ok(!result.isError);
+ } finally {await client.close();}
  await stop();await launch();assert.equal((await request('/api/projects/'+project.id)).entities.find(e=>e.id===entity.id).data.body,'restart persistence verified');
- console.log('PASS: extracted release startup, static UI, three file formats, sample hierarchy, MCP configuration, restart persistence');
+ console.log('PASS: extracted release startup, static UI, three file formats, sample hierarchy, STDIO MCP read, restart persistence');
 }finally{await stop();rmSync(data,{recursive:true,force:true});}
