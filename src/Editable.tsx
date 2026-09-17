@@ -10,6 +10,7 @@ export function Editable({entity,field='body',className='',placeholder='',multil
   const key=`ac-draft:${entity.projectId}:${entity.id}:${field}`;
   const typography = usePreferences(s => `${s.preferences.font}:${s.preferences.fontSize}`);
   const editor=useEditorApi();
+  const readOnly=useEditor(s=>s.readOnly);
   const draftKeys=useEditor(s=>s.draftKeys);
   const readDraft=()=>{try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}};
   const initial=useRef(readDraft());
@@ -62,6 +63,9 @@ export function Editable({entity,field='body',className='',placeholder='',multil
   const saveRef=useRef(save);saveRef.current=save;
   useEffect(()=>()=>{if(dirty.current)void saveRef.current();},[]);
   const name=label||`${entity.data.title||'内容'}${field==='title'?'标题':'正文'}`;
+  if(readOnly) return <div className={`editable readonly-text nodrag nopan nowheel ${markdown?'markdown-content':''} ${className}`} data-comment-object={entity.id} data-comment-field={field} data-comment-version={entity.version}>
+    {markdown && entity.data[field] ? <Suspense fallback={entity.data[field]}><MarkdownContent text={entity.data[field]} entity={entity}/></Suspense> : entity.data[field] || <span className="markdown-placeholder">{placeholder}</span>}
+  </div>;
   if(markdown&&!editing)return <div className={`editable markdown-content nodrag nopan nowheel ${className}`} role="button" tabIndex={0} aria-label={`编辑${name}`} title="点击编辑 Markdown" onClick={()=>setEditing(true)} onKeyDown={e=>{e.stopPropagation();if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setEditing(true);}}}>
     {value ? <Suspense fallback={value}><MarkdownContent text={value} entity={entity} onEdit={()=>setEditing(true)}/></Suspense> : <span className="markdown-placeholder">{placeholder||'点击添加内容…'}</span>}
   </div>;

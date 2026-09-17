@@ -1671,8 +1671,6 @@
 .agentcanvas .interaction-modes button[aria-pressed="true"] svg {
   stroke-width: 2.6;
 }
-.agentcanvas.mode-comment .react-flow__node,
-.agentcanvas.mode-comment .react-flow__node *,
 .agentcanvas.mode-debug .canvas-main,
 .agentcanvas.mode-debug .canvas-main * {
   cursor: crosshair !important;
@@ -2232,3 +2230,14 @@
 .agentcanvas .layout-preview-status { color:#795994; background:#f7f2fb; padding:9px; border-radius:7px; }
 .agentcanvas .auto-layout-shield.previewing { cursor:grab; touch-action:none; }
 .agentcanvas .auto-layout-shield.previewing:active { cursor:grabbing; }
+
+/* Read-only remains selectable and navigable, including native Markdown text ranges. */
+.agentcanvas.is-readonly .readonly-text, .agentcanvas.is-readonly .readonly-text * { user-select: text; -webkit-user-select: text; cursor: text; }
+.agentcanvas.is-readonly .readonly-text { white-space: pre-wrap; min-height: 1.4em; }
+.agentcanvas.is-readonly .readonly-text.markdown-content { white-space: normal; }
+.agentcanvas.is-readonly .react-flow__handle { visibility: hidden; }
+.agentcanvas .property-edit-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.agentcanvas .text-quote-action { position: fixed; z-index: 110; display: flex; align-items: center; gap: 7px; padding: 10px 13px; background: #fff; color: #6550b6; border: 1px solid #d9d1eb; border-radius: 9px; box-shadow: 0 4px 20px #3332; }
+.agentcanvas .comment-quote { position: relative; margin: 10px 0; padding: 10px 28px 10px 12px; background: #f5f2fa; border-radius: 8px; font-size: 12px; }
+.agentcanvas .comment-quote blockquote { margin: 6px 0; padding-left: 9px; border-left: 2px solid #b4a3d7; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; user-select: text; }
+.agentcanvas .comment-quote > button { position: absolute; top: 8px; right: 6px; }

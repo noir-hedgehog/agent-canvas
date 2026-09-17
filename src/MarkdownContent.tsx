@@ -24,10 +24,10 @@ export function MarkdownContent({text,entity,onEdit}: {text:string;entity?:Entit
       const code=node?.children[0];
       if(code?.type==='element' && code.tagName==='code' && Array.isArray(code.properties.className) && code.properties.className.includes('language-mermaid')) {
         const source=code.children.map(child=>child.type==='text'?child.value:'').join('').replace(/\n$/,'');
-        return <MermaidBlock source={source} onEdit={()=>editRef.current?.()}/>;
+        return <MermaidBlock source={source} onEdit={onEdit ? ()=>editRef.current?.() : undefined}/>;
       }
       return <pre {...props}>{children}</pre>;
-    } ,[]);
+    } ,[!!onEdit]);
   return <><Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={(url,key,node)=>entity && node.tagName==='a' && inlineFileSource(url) ? url : defaultUrlTransform(url)} components={{
     pre,
     a: ({node,...props}) => {

@@ -1,6 +1,7 @@
 import {DEMO_MODE,assetUrl} from "./runtime";
 import {
   useCallback,
+  useLayoutEffect,
   useEffect,
   useMemo,
   useRef,
@@ -102,6 +103,7 @@ import {
 } from "../shared/model";
 import "@xyflow/react/dist/style.css";
 import "./style.css";
+import {TextSelectionComment, type TextContext} from "./TextSelectionComment";
 
 export interface CanvasEditorProps {
   projectId?: string;
@@ -303,6 +305,13 @@ function EditorSurface(props: CanvasEditorProps) {
     [toast, setToast] = useState(""),
     [search, setSearch] = useState(""),
     [searchOpen, setSearchOpen] = useState(false);
+  const [manualReadOnly,setManualReadOnly]=useState(false);
+  const readOnly=manualReadOnly || mode !== 'edit';
+  const [textContext,setTextContext]=useState<TextContext|null>(null);
+  useLayoutEffect(()=>{store.setState({readOnly});},[readOnly,store]);
+  // Finish writes already started by blur before changing the browser editing guard.
+  async function settleBrowserEdits(){await Promise.all((store.getState().snapshot?.entities || []).map(e=>store.getState().settleEdits(e.id)));}
+  async function toggleReadOnly(){await settleBrowserEdits();if(readOnly){setMode('edit');setManualReadOnly(false);}else setManualReadOnly(true);}
   const flow = useReactFlow<CanvasNodeType>(),
     fileInput = useRef<HTMLInputElement>(null),
     replaceTarget = useRef<Entity | null>(null),
@@ -519,7 +528,7 @@ function EditorSurface(props: CanvasEditorProps) {
           if (!a || !b) return [];
           const reverse = (layoutPlan?.positions[a.id]?.x ?? a.data.x) > (layoutPlan?.positions[b.id]?.x ?? b.data.x);
           return [{ id: e.id, source: reverse ? b.id : a.id, target: reverse ? a.id : b.id, sourceHandle: "out", targetHandle: "in",
-            type: "relation", data: { entity: e, reverse, active: activeLine === e.id, editable: mode === "edit", onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
+            type: "relation", data: { entity: e, reverse, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
             hidden: [a, b].some(p => { const object = byId.get(p.data.objectId); return object?.kind === "mind" && hiddenMind(object); }),
             style: { stroke: "#9483b0", strokeWidth: 1.8, strokeDasharray: "5 4" },
             labelStyle: { fill: "#746387", fontSize: 12 }, labelBgStyle: { fill: "#faf7ff" } }];
@@ -544,7 +553,7 @@ function EditorSurface(props: CanvasEditorProps) {
             sourceHandle: "out",
             targetHandle: "in",
             type: e.kind === "edge" ? "relation" : "smoothstep",
-            data: e.kind === "edge" ? { entity: e, reverse: false, active: activeLine === e.id, editable: mode === "edit", onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) } : undefined,
+            data: e.kind === "edge" ? { entity: e, reverse: false, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) } : undefined,
             label: e.kind === "edge" ? e.data.label : undefined,
             hidden: e.kind === "mind" && hiddenMind(e),
             style: {
@@ -560,14 +569,14 @@ function EditorSurface(props: CanvasEditorProps) {
           },
         ];
       }),
-    [snapshot, canvasId, revealedBranches, activeLine, mode, layoutPlan],
+    [snapshot, canvasId, revealedBranches, activeLine, mode, readOnly, layoutPlan],
   );
   const nodesChanged = useCallback(
     (changes: NodeChange<CanvasNodeType>[]) => {
       setNodes((ns) => applyNodeChanges(changes, ns).map(n => ({
         ...n, handles: nodeHandles(n.measured?.width || n.data.placement.data.width, n.measured?.height || n.data.placement.data.height),
       })));
-      if (mode !== "edit") return;
+      if (mode === "debug") return;
       // Only user selection changes write back to the editor. Mirroring
       // onSelectionChange also echoes controlled updates during navigation.
       const selectionChanges = changes.filter((change) => change.type === "select");
@@ -595,7 +604,8 @@ function EditorSurface(props: CanvasEditorProps) {
         .objectId as string | undefined,
     [store],
   );
-  function switchMode(next: InteractionMode) {
+  async function switchMode(next: InteractionMode) {
+    await settleBrowserEdits();
     const active = mode === next ? "edit" : next;
     setMode(active);
     setNavigationOpen(false);
@@ -619,6 +629,7 @@ function EditorSurface(props: CanvasEditorProps) {
       );
   }
   function renameProject() {
+    if(store.getState().readOnly)return;
     setProjectMenu(false);
     setDialog({title:"项目改名",fields:[{name:"name",label:"项目名称",value:project!.name}],onSubmit:async v=>{
       store.setState({saveState:"saving"});
@@ -627,6 +638,7 @@ function EditorSurface(props: CanvasEditorProps) {
     }});
   }
   function newProject() {
+    if(store.getState().readOnly)return;
     remember();
     setProjectMenu(false);
     setDialog({
@@ -676,6 +688,7 @@ function EditorSurface(props: CanvasEditorProps) {
       : { x: 180, y: 160 };
   };
   async function insert(kind: "card" | "note" | "text" | "tasks" | "mind" | "flow" | "status", internalNode = false) {
+    if(store.getState().readOnly)return;
     const id = crypto.randomUUID(),
       pos = center(),
       ops: Operation[] = [];
@@ -770,6 +783,7 @@ function EditorSurface(props: CanvasEditorProps) {
     if (result) store.setState({ selected: [placement.id] });
   }
   function editRelation(source: Entity, target?: Entity, relation?: Entity) {
+    if(store.getState().readOnly)return;
     if (relation) { setActiveLine(relation.id); store.setState({selected: []}); return; }
     const create = async (targetPlacementId: string) => {
       const op = createOp("relation", canvasId, {sourcePlacementId: source.id, targetPlacementId, label: "", direction: "none", lineStyle: "association"});
@@ -787,6 +801,7 @@ function EditorSurface(props: CanvasEditorProps) {
     });
   }
   async function convertCard(e: Entity, target: CardTarget, extra: Record<string, any> = {}) {
+    if(store.getState().readOnly)return;
     await s.settleEdits(e.id);
     if (store.getState().draftKeys.some(key => key.startsWith(`ac-draft:${project!.id}:${e.id}:`))) {
       flash("文字尚未保存，请先处理保存提示，再转换卡片"); return;
@@ -799,6 +814,7 @@ function EditorSurface(props: CanvasEditorProps) {
     await s.run(conversionOperations(latest, target, crypto.randomUUID(), extra), "转换卡片类型");
   }
   async function upload(file: File, replace?: Entity) {
+    if(store.getState().readOnly)return;
     try {
       const buffer = await file.arrayBuffer();
       let binary = "";
@@ -837,6 +853,7 @@ function EditorSurface(props: CanvasEditorProps) {
     }
   }
   function referenceFile(entity?: Entity, replaceId?: string) {
+    if(store.getState().readOnly)return;
     const requestId = crypto.randomUUID();
     const pos = center();
     setMode('edit');
@@ -871,6 +888,7 @@ function EditorSurface(props: CanvasEditorProps) {
         navigate(e.data.childCanvasId);
         return;
       }
+      if(store.getState().readOnly){flash("此节点尚无子画布，请在编辑模式下展开。");return;}
       const id = crypto.randomUUID();
       const c = await s.run(
         [
@@ -1056,6 +1074,7 @@ function EditorSurface(props: CanvasEditorProps) {
     } catch (error) { flash((error as Error).message); }
   }
   function deleteSelection() {
+    if(store.getState().readOnly)return;
     if (!chosen.length) return;
     const owns = [
       ...new Map(
@@ -1101,6 +1120,7 @@ function EditorSurface(props: CanvasEditorProps) {
     });
   }
   function addReference() {
+    if(store.getState().readOnly)return;
     const collections = live.filter(
       (e) => e.kind === "tasks" && e.canvasId !== canvasId,
     );
@@ -1182,15 +1202,16 @@ function EditorSurface(props: CanvasEditorProps) {
     return()=>cancelAnimationFrame(frame);
   },[layoutPlan]);
   function layoutGraph() {
+    if(store.getState().readOnly)return;
     const ops = gridOperations(places, selected);
     if (ops.length) void s.run(ops, "卡片对齐网格");
     else flash(places.length ? "卡片已对齐网格" : "先添加卡片，再对齐网格");
   }
   async function submitComment() {
-    if (!comment.trim() || !chosen.length) return;
+    if (!comment.trim() || !chosen.length || textContext && (chosen.length !== 1 || chosen[0].id !== textContext.objectId)) return;
     const id = crypto.randomUUID(),
       requestId = crypto.randomUUID();
-    const targets = chosen.map((e) => ({
+    const targets = [...new Map(chosen.map(e=>[e.id,e])).values()].map((e) => ({
       id: e.id,
       version: e.version,
       canvasId: e.canvasId,
@@ -1203,6 +1224,7 @@ function EditorSurface(props: CanvasEditorProps) {
       canvasId,
       {
         annotationId: id,
+        ...(textContext ? {source:"text",textContext} : {}),
         targets,
         instruction,
         state: "pending",
@@ -1216,7 +1238,7 @@ function EditorSurface(props: CanvasEditorProps) {
         createOp(
           "annotation",
           canvasId,
-          { targets, body: instruction, state: "open", replies: [] },
+          { targets, body: instruction, state: "open", replies: [], ...(textContext ? {source:"text",textContext} : {}) },
           id,
         ),
         request,
@@ -1225,6 +1247,7 @@ function EditorSurface(props: CanvasEditorProps) {
     );
     if (result) {
       setComment("");
+      setTextContext(null);
       localStorage.removeItem(`ac-comment:${project!.id}:${canvasId}`);
       props.onDiscussionRequest?.(
         result.entries.find((e) => e.after.id === requestId)!.after,
@@ -1254,7 +1277,16 @@ function EditorSurface(props: CanvasEditorProps) {
     setComment(
       localStorage.getItem(`ac-comment:${project?.id}:${canvasId}`) || "",
     );
-  }, [canvasId]);
+    const savedQuote=localStorage.getItem(`ac-comment-quote:${project?.id}:${canvasId}`);
+    try{setTextContext(savedQuote?JSON.parse(savedQuote):null);}catch{setTextContext(null);}
+  }, [canvasId,project?.id]);
+  useEffect(()=>{
+    if(!project)return;
+    const key=`ac-comment-quote:${project.id}:${canvasId}`;
+    if(textContext)localStorage.setItem(key,JSON.stringify(textContext));else localStorage.removeItem(key);
+  },[textContext,project?.id,canvasId]);
+  // Changing the target selection invalidates a pending quote, never silently reattach it.
+  useEffect(()=>{if(textContext && chosen.length && (chosen.length!==1 || chosen[0].id!==textContext.objectId))setTextContext(null);},[selected.join(',')]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if(layoutOpen){if(e.key==="Escape"){e.preventDefault();closeLayout();}return;}
@@ -1282,7 +1314,7 @@ function EditorSurface(props: CanvasEditorProps) {
         void (e.shiftKey ? s.redo() : s.undo());
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        deleteSelection();
+        if(!readOnly)deleteSelection();
       } else if (e.key === "Escape") {
         setMode("edit");
         store.setState({ selected: [], panel: null });
@@ -1290,7 +1322,7 @@ function EditorSurface(props: CanvasEditorProps) {
     };
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
-  }, [selected.join(","), snapshot, dialog, mode, navigationOpen, archiveOpen, settingsOpen, layoutOpen, layoutBusy]);
+  }, [selected.join(","), snapshot, dialog, mode, navigationOpen, archiveOpen, settingsOpen, layoutOpen, layoutBusy, readOnly]);
   if (!snapshot)
     return (
       <div className="loading-screen">
@@ -1316,7 +1348,7 @@ function EditorSurface(props: CanvasEditorProps) {
     <div
       ref={editorRoot}
       style={{ '--card-font-family': fontOptions[preferences.font].family, '--card-font-size': `${preferences.fontSize}px`, '--card-font-scale': preferences.fontSize / 14 } as CSSProperties}
-      className={`agentcanvas mode-${mode} ${props.embedded ? "embedded" : ""}`}
+      className={`agentcanvas mode-${mode} ${readOnly ? "is-readonly" : ""} ${props.embedded ? "embedded" : ""}`}
       onPointerDownCapture={event => { if(activeLine && !(event.target as Element).closest('.relation-inline, .react-flow__edge')) setActiveLine(null); }}
     >
       <header className="app-header">
@@ -1359,8 +1391,8 @@ function EditorSurface(props: CanvasEditorProps) {
                 </button>
               ))}
               <hr />
-              <button onClick={renameProject}>项目改名</button>
-              <button onClick={newProject}>
+              <button disabled={readOnly} onClick={renameProject}>项目改名</button>
+              <button disabled={readOnly} onClick={newProject}>
                 <FolderPlus size={15} />
                 新建空白项目
               </button>
@@ -1376,9 +1408,10 @@ function EditorSurface(props: CanvasEditorProps) {
           aria-label="交互模式"
           data-picker-ignore="true"
         >
+          <button aria-label="只读模式" title={readOnly ? "网页只读 · Agent 仍可写入；点击恢复编辑" : "切换网页只读模式"} aria-pressed={readOnly} onClick={()=>void toggleReadOnly()}>{readOnly ? <LockKeyhole size={18}/> : <UnlockKeyhole size={18}/>}</button>
           <button
             aria-label="批注模式"
-            title="批注模式"
+            title="批注模式 · 自动只读，支持选中文字与框选卡片"
             aria-pressed={mode === "comment"}
             onClick={() => switchMode("comment")}
           >
@@ -1457,7 +1490,7 @@ function EditorSurface(props: CanvasEditorProps) {
             if (e.dataTransfer.types.includes("Files")) e.preventDefault();
           }}
           onDrop={(e) => {
-            if (mode !== "edit") {
+            if (readOnly) {
               e.preventDefault();
               return;
             }
@@ -1480,15 +1513,15 @@ function EditorSurface(props: CanvasEditorProps) {
               </span>)}
             </nav>
             <div className="canvas-top-actions">
-              {byId.get(current?.data.ownerNodeId)?.kind === "diagram" && <button onClick={() => void insert(byId.get(current?.data.ownerNodeId)!.data.diagramType, true)}><Plus size={14} />添加内部节点</button>}
+              {!readOnly && byId.get(current?.data.ownerNodeId)?.kind === "diagram" && <button onClick={() => void insert(byId.get(current?.data.ownerNodeId)!.data.diagramType, true)}><Plus size={14} />添加内部节点</button>}
               <button
                 onClick={() => setSearchOpen(!searchOpen)}
                 aria-label="查找内容"
               >
                 <Search size={16} />
               </button>
-              <button aria-label="自动布局" onClick={()=>{setMode('edit');setActiveLine(null);setNavigationOpen(false);setArchiveOpen(false);setProjectMenu(false);setLayoutError('');layoutViewport.current=flow.getViewport();setLayoutOpen(true);}}><LayoutTemplate size={14}/>自动布局</button>
-              <button onClick={layoutGraph} title="选中时对齐所选卡片，未选中时对齐本层全部卡片">
+              <button disabled={readOnly} aria-label="自动布局" onClick={()=>{setMode('edit');setActiveLine(null);setNavigationOpen(false);setArchiveOpen(false);setProjectMenu(false);setLayoutError('');layoutViewport.current=flow.getViewport();setLayoutOpen(true);}}><LayoutTemplate size={14}/>自动布局</button>
+              <button disabled={readOnly} onClick={layoutGraph} title="选中时对齐所选卡片，未选中时对齐本层全部卡片">
                 <GitBranch size={14} />
                 对齐网格
               </button>
@@ -1583,21 +1616,22 @@ function EditorSurface(props: CanvasEditorProps) {
                 );
               }}
               onEdgeClick={(_ev, edge) => {
-                if (mode === "edit" && byId.has(edge.id)) { setActiveLine(edge.id); store.setState({selected: []}); }
+                if (!readOnly && byId.has(edge.id)) { setActiveLine(edge.id); store.setState({selected: []}); }
               }}
               onPaneClick={() => setActiveLine(null)}
-              onNodeClick={() => setActiveLine(null)}
+              onNodeClick={()=>{setActiveLine(null);if(mode==="comment")store.setState({panel:"comments"});}}
+              onSelectionEnd={()=>{if(mode==="comment")store.setState({panel:"comments"});}}
               minZoom={lockedZoom ?? 0.2}
               maxZoom={lockedZoom ?? 2}
               zoomOnScroll={lockedZoom === null}
               zoomOnPinch={lockedZoom === null}
               zoomOnDoubleClick={lockedZoom === null}
               panOnScroll={lockedZoom !== null}
-              nodesDraggable={mode === "edit"}
-              nodesConnectable={mode === "edit"}
-              elementsSelectable={mode === "edit"}
+              nodesDraggable={!readOnly}
+              nodesConnectable={!readOnly}
+              elementsSelectable={mode !== "debug"}
               panOnDrag={hand ? [0, 1, 2] : [1, 2]}
-              selectionOnDrag={mode === "edit" && !hand}
+              selectionOnDrag={mode !== "debug" && !hand}
               selectionMode={SelectionMode.Partial}
               deleteKeyCode={null}
               multiSelectionKeyCode="Shift"
@@ -1624,10 +1658,11 @@ function EditorSurface(props: CanvasEditorProps) {
                   </p>
                   <button
                     className="primary"
+                    disabled={readOnly}
                     onClick={() => void insert("card")}
                   >
                     <Plus size={16} />
-                    创建空白卡片
+                    {readOnly ? "只读模式" : "创建空白卡片"}
                   </button>
                 </div>
               )}
@@ -1636,14 +1671,14 @@ function EditorSurface(props: CanvasEditorProps) {
           <div className="canvas-bottom-left">
             <button
               aria-label="撤销"
-              disabled={!s.undoStack.length}
+              disabled={readOnly || !s.undoStack.length}
               onClick={() => void s.undo()}
             >
               <Undo2 size={17} />
             </button>
             <button
               aria-label="重做"
-              disabled={!s.redoStack.length}
+              disabled={readOnly || !s.redoStack.length}
               onClick={() => void s.redo()}
             >
               <Redo2 size={17} />
@@ -1679,7 +1714,7 @@ function EditorSurface(props: CanvasEditorProps) {
               label="选择"
               active={!hand && mode === "edit"}
               onClick={() => {
-                setMode("edit");
+                if(mode==="debug")setMode("edit");
                 setHand(false);
               }}
             />
@@ -1688,11 +1723,12 @@ function EditorSurface(props: CanvasEditorProps) {
               label="拖动画布"
               active={hand}
               onClick={() => {
-                setMode("edit");
+                if(mode==="debug")setMode("edit");
                 setHand(true);
               }}
             />
             <i />
+            {!readOnly && <>
             <Tool icon={<Plus />} label="空白卡片" onClick={() => void insert("card")} />
             <Tool icon={<Link2 />} label="引用文件" onClick={() => referenceFile()} />
             <Tool
@@ -1729,27 +1765,30 @@ function EditorSurface(props: CanvasEditorProps) {
               label="任务卡片（Todo / Kanban）"
               onClick={() => void insert("tasks")}
             />
+            </>}
+            {readOnly && <Tool icon={<MessageSquarePlus/>} label="批注所选卡片" onClick={()=>store.setState({panel:"comments"})}/>}
 
           </div>
           <button ref={archiveBin} data-picker-ignore="true" className={`canvas-archive-bin ${archiveHover ? 'drag-over' : ''}`} aria-label="卡片收纳箱" title="拖动时将鼠标移入收纳箱后松手归档；点击查看并恢复。共享卡片的所有引用视图同步归档。" aria-expanded={archiveOpen} onClick={() => setArchiveOpen(!archiveOpen)}><Archive size={22}/>{archivedCards.length > 0 && <span>{archivedCards.length}</span>}</button>
           {archiveOpen && <section data-picker-ignore="true" className="canvas-archive-panel" aria-label="已归档卡片">
             <header><strong>收纳箱 · 当前画布</strong><button aria-label="关闭收纳箱" onClick={() => setArchiveOpen(false)}><X size={16}/></button></header>
             <small>归档保留内容、连线和子画布；恢复回到原位置。</small>
-            {chosen.length > 0 && <button onClick={() => void changeArchive([...new Set(chosen.map(e => e.id))], true)} disabled={s.saveState === "saving"}>归档所选 {chosen.length} 张卡片</button>}
+            {chosen.length > 0 && <button onClick={() => void changeArchive([...new Set(chosen.map(e => e.id))], true)} disabled={readOnly || s.saveState === "saving"}>归档所选 {chosen.length} 张卡片</button>}
             {!archivedCards.length && <p>将卡片拖到右下角收纳箱，即可归档。</p>}
-            {archivedCards.map(e => <article key={e.id}><div><strong>{e.data.title || '未命名卡片'}</strong><small>{e.data.childCanvasId ? '含子画布 · ' : ''}已归档</small></div><button aria-label={`恢复卡片：${e.data.title || '未命名卡片'}`} title="恢复到原位置" disabled={s.saveState === 'saving'} onClick={() => void changeArchive([e.id],false)}><ArchiveRestore size={17}/></button></article>)}
+            {archivedCards.map(e => <article key={e.id}><div><strong>{e.data.title || '未命名卡片'}</strong><small>{e.data.childCanvasId ? '含子画布 · ' : ''}已归档</small></div><button aria-label={`恢复卡片：${e.data.title || '未命名卡片'}`} title="恢复到原位置" disabled={readOnly || s.saveState === 'saving'} onClick={() => void changeArchive([e.id],false)}><ArchiveRestore size={17}/></button></article>)}
           </section>}
           <div className="canvas-footnote">
             {mode === "comment"
-              ? "批注模式 · 点击卡片创建批注 · Esc 退出"
+              ? "批注模式 · 网页只读 · 选中文字或框选多卡片 · Esc 退出"
               : mode === "debug"
                 ? "调试模式 · 悬停检查 div，点击锁定 · Esc 退出"
-                : selected.length
+                : readOnly ? "网页只读 · 可选中文字或框选多卡片后批注 · Agent 仍可写入" : selected.length
                   ? `${selected.length} 项已选择 · Shift 多选`
                   : "空格拖动 · 滚轮缩放 · 框选后批注"}
           </div>
         </main>
-        <ElementPicker
+        {readOnly && mode!=="debug" && <TextSelectionComment key={`${project!.id}:${canvasId}`} root={editorRoot} onQuote={(context,placementId)=>{setTextContext(context);store.setState({selected:[placementId],panel:"comments"});requestAnimationFrame(()=>commentInput.current?.focus());}}/>}
+        {mode==="debug" && <ElementPicker
           key={`${project!.id}:${canvasId}:${mode}`}
           root={editorRoot}
           mode={mode}
@@ -1784,7 +1823,7 @@ function EditorSurface(props: CanvasEditorProps) {
             return request;
           }}
           onSendToConversation={props.onSendToConversation}
-        />
+        />}
         {s.panel && (
           <aside className="side-panel">
             <header>
@@ -1822,6 +1861,7 @@ function EditorSurface(props: CanvasEditorProps) {
                         {e.data.title}
                       </span>
                     ))}
+                    {textContext && <div className="comment-quote"><strong>引用选中文字</strong><blockquote>{textContext.quote}</blockquote><small>原文 v{textContext.version}{byId.get(textContext.objectId)?.version!==textContext.version ? ' · 原卡片已更新，保留批注时的选区' : ''}</small><button aria-label="取消文字引用" onClick={()=>setTextContext(null)}><X size={14}/></button></div>}
                     <textarea
                       ref={commentInput}
                       aria-label="批注内容"
@@ -1837,7 +1877,7 @@ function EditorSurface(props: CanvasEditorProps) {
                     />
                     <button
                       className="primary"
-                      disabled={!chosen.length || !comment.trim()}
+                      disabled={!chosen.length || !comment.trim() || !!textContext && (chosen.length!==1 || chosen[0].id!==textContext.objectId)}
                       onClick={() => void submitComment()}
                     >
                       保存讨论请求
@@ -1866,7 +1906,7 @@ function EditorSurface(props: CanvasEditorProps) {
                           <strong>
                             {r.data.source === "element"
                               ? "元素调试批注"
-                              : r.data.source === 'file' ? '文件批注' : "画布批注"}
+                              : r.data.source === 'file' ? '文件批注' : r.data.textContext ? "文字批注" : "画布批注"}
                           </strong>
                           <select aria-label="批注状态" title="切换批注状态" className={`request-state ${a?.data.state === 'resolved' ? 'resolved' : r.data.state}`} value={a?.data.state === 'resolved' ? 'resolved' : r.data.state} disabled={!a || a.deleted || s.saveState === 'saving'} onChange={ev => a && void s.run(discussionStatusOperations(r, a, ev.target.value as keyof typeof discussionStates), '切换批注状态')}>
                             {Object.entries(discussionStates).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -1889,6 +1929,7 @@ function EditorSurface(props: CanvasEditorProps) {
                             </button>
                           ))}
                         </div>
+                        {r.data.textContext && <div className="comment-quote"><blockquote>{r.data.textContext.quote}</blockquote><small>原文 v{r.data.textContext.version}{byId.get(r.data.textContext.objectId)?.version!==r.data.textContext.version ? " · 原卡片已更新" : ""}</small></div>}
                         <DiscussionText request={r} annotation={a} onCopy={() => void copyRequest(r)} />
                         {r.data.mediaContext && <div className="discussion-file-context"><button title="打开引用文件" onClick={()=>{const target=r.data.targets.find((t:any)=>r.data.mediaContext.inlineSource ? byId.has(t.id)&&!byId.get(t.id)?.deleted : byId.get(t.id)?.data.fileReferenceIds?.includes(r.data.mediaContext.reference.id));if(target)store.setState({filePreview:{entityId:target.id,referenceId:r.data.mediaContext.reference.id,timeSeconds:r.data.mediaContext.timeSeconds,inlineSource:r.data.mediaContext.inlineSource}});else flash('文件已从原卡片移除；批注截图仍保留。');}}><Link2 size={13}/>{r.data.mediaContext.reference.name}{r.data.mediaContext.timeSeconds!==undefined?` · ${timeLabel(r.data.mediaContext.timeSeconds)}`:''}</button>{r.data.mediaContext.screenshotAssetId&&<button className="discussion-screenshot" aria-label="预览批注截图" onClick={()=>store.setState({imagePreview:{src:assetUrl(project!.id,r.data.mediaContext.screenshotAssetId),title:'批注截图'}})}><img src={assetUrl(project!.id,r.data.mediaContext.screenshotAssetId)} alt="批注截图"/></button>}</div>}
                         {r.data.debugContext && (
@@ -1970,7 +2011,7 @@ function EditorSurface(props: CanvasEditorProps) {
                     {selectedEntity.kind === "flow" && (
                       <label className="property-label">
                         节点形状
-                        <select
+                        <select disabled={readOnly}
                           value={selectedEntity.data.shape}
                           onChange={(e) =>
                             void s.patch(
@@ -1989,7 +2030,7 @@ function EditorSurface(props: CanvasEditorProps) {
                     {selectedEntity.kind === "mind" && (
                       <label className="property-label">
                         父节点
-                        <select
+                        <select disabled={readOnly}
                           value={selectedEntity.data.parentId || ""}
                           onChange={(e) =>
                             void s.patch(
@@ -2029,7 +2070,7 @@ function EditorSurface(props: CanvasEditorProps) {
                     {live.filter(e => e.kind === "relation" && e.canvasId === canvasId && [e.data.sourcePlacementId, e.data.targetPlacementId].includes(selected[0])).map(e => {
                       const otherId = e.data.sourcePlacementId === selected[0] ? e.data.targetPlacementId : e.data.sourcePlacementId;
                       const other = byId.get(byId.get(otherId)?.data.objectId);
-                      return <button key={e.id} className="wide-secondary relation-property" onClick={() => editRelation(byId.get(e.data.sourcePlacementId)!, byId.get(e.data.targetPlacementId)!, e)}><Link2 size={14} />{e.data.label || "关联"} · {other?.data.title || "卡片"}</button>;
+                      return <button disabled={readOnly} key={e.id} className="wide-secondary relation-property" onClick={() => editRelation(byId.get(e.data.sourcePlacementId)!, byId.get(e.data.targetPlacementId)!, e)}><Link2 size={14} />{e.data.label || "关联"} · {other?.data.title || "卡片"}</button>;
                     })}
                     {selectedEntity.kind === "status" && <label className="property-label">当前状态<Editable entity={selectedEntity} field="state" multiline={false} /></label>}
                     <button
@@ -2051,6 +2092,7 @@ function EditorSurface(props: CanvasEditorProps) {
                       复制内容链接
                     </button>
                     <button
+                      disabled={readOnly}
                       className="wide-secondary danger-text"
                       onClick={deleteSelection}
                     >
@@ -2084,8 +2126,9 @@ function EditorSurface(props: CanvasEditorProps) {
                           })}{" "}
                           · {c.entries.length} 项变更
                         </small>
-                        <button
+                        <button disabled={readOnly}
                           onClick={async () => {
+                            if(store.getState().readOnly)return;
                             try {
                               const result = await api("/api/undo", {
                                 projectId: project!.id,

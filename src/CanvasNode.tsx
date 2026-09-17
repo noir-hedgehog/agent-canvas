@@ -72,6 +72,7 @@ const labels: Record<string, string> = {
   space: "画布卡片",
 };
 export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNodeType>) {
+  const readOnly = useEditor(s=>s.readOnly);
   const [resizing, setResizing] = useState(false);
   const viewport=useViewport();
   const { entity: e, placement: p } = data,
@@ -84,7 +85,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
   const graphNode = e.kind === "mind" || e.kind === "flow";
   const referenced = e.canvasId !== p.canvasId;
   const updateTask = (id: string, change: Record<string, any>) =>
-    patch(
+    !readOnly && patch(
       e,
       {
         items: d.items.map((t: any) => (t.id === id ? { ...t, ...change } : t)),
@@ -103,6 +104,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
   const drop = (ev: React.DragEvent, status: string, beforeId?: string) => {
     ev.preventDefault();
     ev.stopPropagation();
+    if(readOnly)return;
     try {
       const x = JSON.parse(
         ev.dataTransfer.getData("application/agentcanvas-task"),
@@ -114,7 +116,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
     <div
       key={t.id}
       className={`task-row nodrag nopan ${kanban ? "kanban-task" : ""}`}
-      draggable
+      draggable={!readOnly}
       onDragStart={(ev) => {
         ev.stopPropagation();
         ev.dataTransfer.setData(
@@ -129,6 +131,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
       onDrop={(ev) => drop(ev, t.status, t.id)}
     >
       <button
+        disabled={readOnly}
         className={`task-check ${t.status}`}
         aria-label={`${t.status === "done" ? "取消完成" : "完成"} ${t.title}`}
         onClick={() =>
@@ -145,6 +148,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
       </button>
       <button
         className={`task-title ${t.status === "done" ? "completed" : ""}`}
+        disabled={readOnly}
         onClick={() => actions.task(e, t)}
       >
         {t.title}
@@ -167,6 +171,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
       )}
       {!kanban && (
         <select
+          disabled={readOnly}
           className="task-status"
           aria-label={`${t.title}状态`}
           value={t.status}
@@ -193,7 +198,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
   return (
     <>
       <NodeResizer
-        isVisible={selected}
+        isVisible={selected && !readOnly}
         minWidth={e.kind === "tasks" ? 280 : 160}
         minHeight={graphNode ? 110 : 100}
         onResizeStart={() => setResizing(true)}
@@ -214,7 +219,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
         }}
       />
       <NodeToolbar
-        isVisible={selected}
+        isVisible={selected && !readOnly}
         position={Position.Top}
         align={p.data.x*viewport.zoom+viewport.x>window.innerWidth*.65?"end":p.data.x*viewport.zoom+viewport.x<220?"start":"center"}
         className="node-toolbar nodrag nopan"
@@ -263,7 +268,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
       )}
       <div
         onDragOver={ev => { if (ev.dataTransfer.types.includes('Files')) {ev.preventDefault(); ev.stopPropagation();} }}
-        onDrop={ev => { const files = Array.from(ev.dataTransfer.files).filter(f => f.type.startsWith('image/')); if (files.length) {ev.preventDefault(); ev.stopPropagation(); void actions.uploadImages(e, files);} }}
+        onDrop={ev => { const files = Array.from(ev.dataTransfer.files).filter(f => f.type.startsWith('image/')); if (files.length && !readOnly) {ev.preventDefault(); ev.stopPropagation(); void actions.uploadImages(e, files);} }}
         style={d.background ? { background: cardBackgrounds[d.background as keyof typeof cardBackgrounds] } : undefined}
         className={`canvas-card ${p.data.heightMode !== 'fixed' && !resizing ? 'auto-height' : ''} kind-${e.kind} ${e.kind === "note" ? "note-" + (d.color || "yellow") : ""} ${selected ? "is-selected" : ""}  ${e.kind === "flow" ? "flow-" + d.shape : ""}`}
       >
@@ -272,8 +277,8 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
           <Editable entity={e} field="title" multiline={false} placeholder="无标题" className="blank-card-title" />
           <Editable entity={e} placeholder="写下想法…" className="blank-card-body" autoFocus={e.kind === "card" && selected && !d.title && !d.body} />
         </>}
-        <CardImages entity={e} selected={selected}/>
-        <CardFiles entity={e} selected={selected}/>
+        <CardImages entity={e} selected={selected && !readOnly}/>
+        <CardFiles entity={e} selected={selected && !readOnly}/>
         {!graphNode && e.kind !== "diagram" && d.childCanvasId && <button className="card-enter-space nodrag nopan" onClick={() => actions.enter(e)}><ArrowUpRight size={14} />进入画布</button>}
         {data.annotationCount! > 0 && (
           <span className="annotation-dot">
@@ -354,6 +359,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
                     aria-label={
                       d.collapsed && !data.revealed ? "展开分支" : "折叠分支"
                     }
+                    disabled={readOnly}
                     className="nodrag icon-button"
                     onClick={() =>
                       data.revealed && d.collapsed
@@ -373,6 +379,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
                   </button>
                 )}
                 <button
+                  disabled={readOnly && !d.childCanvasId}
                   className="enter-canvas nodrag"
                   aria-label={`进入 ${d.title}`}
                   onClick={() => actions.enter(e)}
@@ -403,6 +410,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
             <div className="collection-controls nodrag nopan">
               <div className="segmented">
                 <button
+                  disabled={readOnly}
                   className={p.data.view !== "board" ? "active" : ""}
                   onClick={() =>
                     void patch(
@@ -415,6 +423,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
                   列表
                 </button>
                 <button
+                  disabled={readOnly}
                   className={p.data.view === "board" ? "active" : ""}
                   onClick={() =>
                     void patch(
@@ -462,6 +471,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
                       .filter((t: any) => t.status === status)
                       .map((t: any) => taskRow(t, true))}
                     <button
+                      disabled={readOnly}
                       className="column-add"
                       onClick={() => actions.task(e, { status })}
                     >
@@ -476,7 +486,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
                 {d.items.map((t: any) => taskRow(t))}
               </div>
             )}
-            <button className="add-task nodrag" onClick={() => actions.task(e)}>
+            <button disabled={readOnly} className="add-task nodrag" onClick={() => actions.task(e)}>
               <Plus size={14} />
               添加任务
             </button>

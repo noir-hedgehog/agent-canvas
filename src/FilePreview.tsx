@@ -13,6 +13,7 @@ export function FilePreview({ onRelink }: { onRelink: (entity: Entity, id: strin
   return value ? <FilePreviewDialog key={`${value.entityId}:${value.referenceId}`} value={value} onRelink={onRelink}/> : null;
 }
 function FilePreviewDialog({ value, onRelink }: { value: {entityId:string;referenceId:string;timeSeconds?:number;inlineSource?:string}; onRelink:(entity:Entity,id:string)=>void }) {
+  const readOnly = useEditor(s=>s.readOnly);
   const store = useEditorApi(), entities = useEditor(s => s.snapshot?.entities || []);
   const entity = entities.find(e => e.id === value.entityId);
   const projectId = entity?.projectId || '';
@@ -87,7 +88,7 @@ function FilePreviewDialog({ value, onRelink }: { value: {entityId:string;refere
     finally{setBusy(false);}
   }
   return <dialog ref={dialog} className="file-preview-modal" aria-label="文件预览与批注" onCancel={e=>{e.preventDefault();close();}}>
-    <header><div><strong>{reference?.name || '文件预览'}</strong><small>{reference?.source}</small></div><button title="重新读取原文件" aria-label="重新读取原文件" disabled={busy} onClick={()=>setReload(x=>x+1)}><RefreshCw size={17}/></button><button title={value.inlineSource?"返回卡片修改内联链接":"重新关联文件"} aria-label={value.inlineSource?"返回卡片修改内联链接":"重新关联文件"} disabled={busy||!entity} onClick={()=>{if(entity){close();if(!value.inlineSource)onRelink(entity,value.referenceId);}}}><Link2 size={17}/></button><button aria-label="关闭文件预览" disabled={busy} onClick={close}><X size={20}/></button></header>
+    <header><div><strong>{reference?.name || '文件预览'}</strong><small>{reference?.source}</small></div><button title="重新读取原文件" aria-label="重新读取原文件" disabled={busy} onClick={()=>setReload(x=>x+1)}><RefreshCw size={17}/></button><button title={value.inlineSource?"返回卡片修改内联链接":"重新关联文件"} aria-label={value.inlineSource?"返回卡片修改内联链接":"重新关联文件"} disabled={readOnly||busy||!entity} onClick={()=>{if(entity){close();if(!value.inlineSource)onRelink(entity,value.referenceId);}}}><Link2 size={17}/></button><button aria-label="关闭文件预览" disabled={busy} onClick={close}><X size={20}/></button></header>
     <div className="file-preview-columns">
       <main className="file-preview-content">
         {value.inlineSource && <small className="file-remote-note">来自卡片描述的内联链接；路径变更时请返回卡片编辑 Markdown 链接。</small>}

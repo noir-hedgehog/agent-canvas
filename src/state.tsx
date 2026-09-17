@@ -24,7 +24,9 @@ export async function api<T = any>(url: string, body?: unknown): Promise<T> {
   if (!response.ok) throw new Error(result.error || "请求失败");
   return result;
 }
+import {allowedInReadOnly} from "./readOnly";
 type State = {
+  readOnly: boolean;
   snapshot: Snapshot | null;
   projects: Project[];
   canvasId: string;
@@ -54,12 +56,13 @@ type State = {
   settleEdits: (id: string) => Promise<void>;
   redo: () => Promise<void>;
 };
-function makeStore() {
+export function makeStore() {
   let refreshEpoch = 0;
   let initEpoch = 0;
   const pendingRequests = new Map<string, string>();
   const patchQueues = new Map<string, Promise<Change | null>>();
   return createStore<State>((set, get) => ({
+    readOnly: false,
     snapshot: null,
     projects: [],
     canvasId: "",
@@ -151,6 +154,10 @@ function makeStore() {
       set({ canvasId, selected: [], error: "" });
     },
     async run(operations, summary) {
+      if (get().readOnly && !allowedInReadOnly(operations, get().snapshot?.entities || [])) {
+        set({error:"当前为网页只读模式，请切回编辑模式后修改内容。"});
+        return null;
+      }
       const projectId = get().snapshot?.project.id;
       if (!projectId) return null;
       set(s=>({ saveState: "saving", error: "", pendingWrites:s.pendingWrites+1 }));
@@ -190,6 +197,7 @@ function makeStore() {
     },
     async settleEdits(id) { while (patchQueues.has(id)) await patchQueues.get(id); },
     async undo() {
+      if(get().readOnly)return;
       const s = get(),
         id = s.undoStack.at(-1);
       if (!id) return;
@@ -211,6 +219,7 @@ function makeStore() {
       }
     },
     async redo() {
+      if(get().readOnly)return;
       const s = get(),
         id = s.redoStack.at(-1);
       if (!id) return;
