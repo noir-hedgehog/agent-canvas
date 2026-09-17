@@ -21,13 +21,14 @@ test('grid alignment handles selection, negative coordinates, and preserves size
   assert.deepEqual(gridOperations([{...places[0],data:{x:24,y:48}}],[]),[]);
 });
 
-test('archive collision accepts touching corners and edges, not just pointer position', async () => {
-  const {rectanglesTouch}=await import('../shared/canvasGeometry');
+test('archive requires the mouse or released touch inside the bin, regardless of card bounds', async () => {
+  const {pointerInRectangle}=await import('../shared/canvasGeometry');
   const bin={x:900,y:700,width:52,height:52};
-  assert.equal(rectanglesTouch({x:600,y:500,width:300,height:200},bin),true);
-  assert.equal(rectanglesTouch({x:599,y:500,width:300,height:200},bin),false);
-  assert.equal(rectanglesTouch({x:952,y:752,width:180,height:120},bin),true);
-  assert.equal(rectanglesTouch({x:900,y:753,width:300,height:200},bin),false);
-  assert.equal(rectanglesTouch({x:850,y:650,width:200,height:200},bin),true);
-  assert.equal(rectanglesTouch({x:899.5,y:699.5,width:1,height:1},bin),true);
+  assert.equal(pointerInRectangle({clientX:899,clientY:730},bin),false);
+  assert.equal(pointerInRectangle({clientX:926,clientY:726},bin),true);
+  assert.equal(pointerInRectangle({clientX:952,clientY:752},bin),true);
+  assert.equal(pointerInRectangle({clientX:926,clientY:753},bin),false);
+  assert.equal(pointerInRectangle({touches:[{clientX:926,clientY:726}]},bin),true);
+  assert.equal(pointerInRectangle({touches:[],changedTouches:[{clientX:926,clientY:726}]},bin),true);
+  assert.equal(pointerInRectangle({touches:[],changedTouches:[]},bin),false);
 });

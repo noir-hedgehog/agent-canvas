@@ -76,6 +76,7 @@
   border-top: 1px solid #ecebf1;
 }
 .agentcanvas {
+  position: relative;
   height: 100dvh;
   min-height: 500px;
   display: flex;
@@ -2217,3 +2218,15 @@
 .agentcanvas .mermaid-source-actions button { flex-shrink:0; font-size:11px; }
 .agentcanvas .mermaid-block [role=alert] { padding:10px; background:#fff2f1; color:#a6424c; border-radius:8px; font-size:12px; overflow-wrap:anywhere; }
 .agentcanvas .mermaid-block [role=alert] p { white-space:pre-wrap; }
+.agentcanvas .auto-layout-shield { position:absolute; inset:0; z-index:70; background:#f8f6fc18; }
+.agentcanvas .auto-layout-panel { position:absolute; top:88px; right:24px; z-index:71; width:min(350px,calc(100% - 48px)); box-sizing:border-box; padding:18px; border:1px solid #e5ddeb; border-radius:14px; background:#fff; box-shadow:0 10px 36px #30244324; font-size:13px; }
+.agentcanvas .auto-layout-panel header, .agentcanvas .auto-layout-panel h3, .agentcanvas .auto-layout-panel footer { display:flex; align-items:center; gap:8px; }
+.agentcanvas .auto-layout-panel header { justify-content:space-between; }
+.agentcanvas .auto-layout-panel h3 { margin:0; font-size:15px; }
+.agentcanvas .auto-layout-panel p { line-height:1.65; margin:12px 0; }
+.agentcanvas .auto-layout-panel small { color:#84788e; line-height:1.6; display:block; margin-top:12px; }
+.agentcanvas .auto-layout-options { display:flex; gap:12px; }
+.agentcanvas .auto-layout-options label { display:flex; flex:1; flex-direction:column; gap:6px; color:#766781; }
+.agentcanvas .auto-layout-options select { width:100%; padding:8px; border:1px solid #e5ddeb; background:#fcfaff; border-radius:7px; color:#493e54; }
+.agentcanvas .auto-layout-panel footer { justify-content:flex-end; margin-top:16px; }
+.agentcanvas .layout-preview-status { color:#795994; background:#f7f2fb; padding:9px; border-radius:7px; }

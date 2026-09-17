@@ -1,7 +1,9 @@
 import { Position } from '@xyflow/react';
 import { updateOp, type Entity } from './model';
-export function rectanglesTouch(a: {x:number;y:number;width:number;height:number}, b: {x:number;y:number;width:number;height:number}) {
-  return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
+export function pointerInRectangle(event: {clientX?:number;clientY?:number;changedTouches?:ArrayLike<{clientX:number;clientY:number}>;touches?:ArrayLike<{clientX:number;clientY:number}>}, rect: {x:number;y:number;width:number;height:number}) {
+  const point = event.changedTouches?.[0] || event.touches?.[0] || event;
+  return typeof point.clientX === 'number' && typeof point.clientY === 'number' &&
+    point.clientX >= rect.x && point.clientX <= rect.x+rect.width && point.clientY >= rect.y && point.clientY <= rect.y+rect.height;
 }
 export function nodeHandles(width: number, height: number) {
   return [

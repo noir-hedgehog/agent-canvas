@@ -8,8 +8,8 @@ export function showcaseOperations(root:string,prefix='showcase'):Operation[] {
   ops.push(createOp(kind,root,{title,body,background:color,...(kind==='note'?{color}:{})},id(key)),placementOp(root,id(key),x,y,width,180,undefined,id(`${key}-place`)));
  };
  card('welcome','一起，把想法展开。','## Agent × 人，共同工作的画布\n\n这是可自由探索的**公开示例**。\n\n先看功能地图，再进入子画布；试着修改文字、拖动卡片、留下批注。\n\n**01 组织内容 → 02 展开细节 → 03 批注 → 04 共同推进**',30,30,'purple','card',430);
- card('basics','01 / 卡片是工作的基本单元','空白卡片可转换为便签、文本、画布或图卡片。\n\n- Markdown / 表格 / 任务列表\n- 图片及文件内联链接\n- 内容自适应高度、颜色和尺寸\n- 拖动、框选、撤销 / 重做',510,30,'yellow');
- card('relations','02 / 用关系表达思路','连线支持箭头、包含和普通关联；可切换方向、编辑标签。\n\n右下角收纳箱支持拖入归档，恢复保留原位置及连线。\n\n试着把这张卡片的边角拖到收纳箱，再松手。',900,30,'blue');
+ card('basics','01 / 卡片是工作的基本单元','空白卡片可转换为便签、文本、画布或图卡片。\n\n- Markdown / 表格 / 任务列表\n- 图片及文件内联链接\n- 内容自适应高度、颜色和尺寸\n- 拖动、框选、撤销 / 重做\n- 自动布局：智能 / 树状 / 流程 / 网格，先预览再应用',510,30,'yellow');
+ card('relations','02 / 用关系表达思路','连线支持箭头、包含和普通关联；可切换方向、编辑标签。\n\n右下角收纳箱支持拖入归档，恢复保留原位置及连线。\n\n拖动卡片时，将鼠标移到收纳箱上，再松手归档。',900,30,'blue');
  ops.push(...diagramOperations(root,'mind',id('map'),'03 / 功能地图 · 点此进入',30,430,430));
  const mapRoot=id('map')+':node-0',mapChild=id('map')+':canvas';
  for(const op of ops)if(op.op==='create'&&op.id.startsWith(id('map')+':node-')) {

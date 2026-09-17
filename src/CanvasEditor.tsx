@@ -23,6 +23,7 @@ import {
 } from "@xyflow/react";
 import {
   Archive,
+  LayoutTemplate,
   ArchiveRestore,
   MousePointer2,
   Hand,
@@ -66,7 +67,9 @@ import { CanvasNavigator } from "./CanvasNavigator";
 import { AgentConnection } from "./AgentConnection";
 import { diagramOperations } from "../shared/diagram";
 import { conversionOperations, type CardTarget } from "../shared/conversion";
-import { nodeHandles, gridOperations, rectanglesTouch } from "../shared/canvasGeometry";
+import { nodeHandles, gridOperations, pointerInRectangle } from "../shared/canvasGeometry";
+import {AutoLayoutPanel} from './AutoLayoutPanel';
+import {createLayoutPlan,layoutSignature,type LayoutPlan,type LayoutMode,type LayoutSpacing} from '../shared/autoLayout';
 import { RelationEdge } from "./RelationEdge";
 import type { CanvasTreeEntry } from "../shared/canvasTree";
 import { archiveOperations, isArchived, isCard, matchesArchive } from "../shared/archive";
@@ -310,6 +313,14 @@ function EditorSurface(props: CanvasEditorProps) {
     commentInput = useRef<HTMLTextAreaElement>(null),
     lastCanvas = useRef(""),
     focusDone = useRef("");
+  const [layoutOpen,setLayoutOpen]=useState(false);
+  const [layoutMode,setLayoutMode]=useState<LayoutMode>('smart');
+  const [layoutSpacing,setLayoutSpacing]=useState<LayoutSpacing>('standard');
+  const [layoutPlan,setLayoutPlan]=useState<LayoutPlan|null>(null);
+  const [layoutError,setLayoutError]=useState('');
+  const [layoutBusy,setLayoutBusy]=useState(false);
+  const layoutViewport=useRef<Viewport|null>(null);
+  const layoutMeasurements=useRef<Map<string,{width:number;height:number}>>(new Map());
   const pendingLocation = useRef<{ id: string; canvasId: string } | null>(null);
   const entities = snapshot?.entities || [],
     live = entities.filter((e) => !e.deleted),
@@ -505,7 +516,7 @@ function EditorSurface(props: CanvasEditorProps) {
         if (e.kind === "relation") {
           const a = byId.get(e.data.sourcePlacementId), b = byId.get(e.data.targetPlacementId);
           if (!a || !b) return [];
-          const reverse = a.data.x > b.data.x;
+          const reverse = (layoutPlan?.positions[a.id]?.x ?? a.data.x) > (layoutPlan?.positions[b.id]?.x ?? b.data.x);
           return [{ id: e.id, source: reverse ? b.id : a.id, target: reverse ? a.id : b.id, sourceHandle: "out", targetHandle: "in",
             type: "relation", data: { entity: e, reverse, active: activeLine === e.id, editable: mode === "edit", onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
             hidden: [a, b].some(p => { const object = byId.get(p.data.objectId); return object?.kind === "mind" && hiddenMind(object); }),
@@ -548,7 +559,7 @@ function EditorSurface(props: CanvasEditorProps) {
           },
         ];
       }),
-    [snapshot, canvasId, revealedBranches, activeLine, mode],
+    [snapshot, canvasId, revealedBranches, activeLine, mode, layoutPlan],
   );
   const nodesChanged = useCallback(
     (changes: NodeChange<CanvasNodeType>[]) => {
@@ -1030,14 +1041,9 @@ function EditorSurface(props: CanvasEditorProps) {
       }, 120);
     },
   };
-  function overArchiveBin(dragged: CanvasNodeType[]) {
+  function overArchiveBin(event: MouseEvent | TouchEvent) {
     const bin = archiveBin.current?.getBoundingClientRect();
-    if (!bin) return false;
-    const zoom = flow.getViewport().zoom;
-    return dragged.some(node => {
-      const point = flow.flowToScreenPosition(node.position);
-      return rectanglesTouch({...point, width:(node.measured?.width ?? node.width ?? node.data.placement.data.width)*zoom, height:(node.measured?.height ?? node.height ?? node.data.placement.data.height)*zoom}, bin);
-    });
+    return !!bin && pointerInRectangle(event,bin);
   }
   async function changeArchive(ids: string[], archived: boolean) {
     try {
@@ -1129,6 +1135,51 @@ function EditorSurface(props: CanvasEditorProps) {
       },
     });
   }
+  const layoutStale=!!layoutPlan && (layoutPlan.canvasId!==canvasId || layoutPlan.signature!==layoutSignature(entities,canvasId) || nodes.some(n=>{
+    const original=layoutMeasurements.current.get(n.id);
+    return original && (Math.abs(original.width-(n.measured?.width||n.data.placement.data.width))>1 || Math.abs(original.height-(n.measured?.height||n.data.placement.data.height))>1);
+  }));
+  function clearLayoutPreview(restoreViewport=true) {
+    setLayoutPlan(null);setLayoutError('');
+    if(restoreViewport&&layoutViewport.current)void flow.setViewport(layoutViewport.current);
+  }
+  function closeLayout() {
+    if(layoutBusy)return;
+    clearLayoutPreview();setLayoutOpen(false);layoutViewport.current=null;
+  }
+  async function previewLayout() {
+    setLayoutBusy(true);setLayoutError('');
+    try {
+      for(const e of chosen)await store.getState().settleEdits(e.id);
+      if(store.getState().pendingWrites||store.getState().draftKeys.length)throw new Error('请先保存未提交的修改，再预览布局');
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+      const latest=store.getState();
+      if(latest.canvasId!==canvasId||latest.snapshot?.project.id!==project?.id)return;
+      const measured=flow.getNodes().map(n=>({id:n.id,width:n.measured?.width||n.data.placement.data.width,height:n.measured?.height||n.data.placement.data.height,hidden:n.hidden}));
+      layoutMeasurements.current=new Map(measured.map(n=>[n.id,n]));
+      const plan=createLayoutPlan(latest.snapshot!.entities,canvasId,latest.selected,measured,layoutMode,layoutSpacing);
+      setLayoutPlan(plan);
+      if(!plan.operations.length)setLayoutError('卡片已处于该布局，无需保存。');
+    } catch(error){setLayoutError((error as Error).message);}
+    finally{setLayoutBusy(false);}
+  }
+  async function applyLayout() {
+    if(!layoutPlan||layoutStale||layoutBusy)return;
+    if(layoutPlan.signature!==layoutSignature(store.getState().snapshot?.entities||[],canvasId)){setLayoutError('内容已变化，请重新预览。');return;}
+    setLayoutBusy(true);
+    const result=await store.getState().run(layoutPlan.operations,'自动布局');
+    setLayoutBusy(false);
+    if(result){setLayoutPlan(null);setLayoutOpen(false);layoutViewport.current=null;flash('已应用布局，可以一次撤销。');}
+    else setLayoutError(store.getState().error||'保存失败，请重新预览后重试');
+  }
+  useEffect(()=>{
+    setLayoutPlan(null);setLayoutOpen(false);layoutViewport.current=null;
+  },[canvasId,project?.id]);
+  useEffect(()=>{
+    if(!layoutPlan)return;
+    const frame=requestAnimationFrame(()=>{void flow.fitView({nodes:Object.keys(layoutPlan.positions).map(id=>({id})),padding:.3,minZoom:lockedZoom??.1,maxZoom:lockedZoom??1});});
+    return()=>cancelAnimationFrame(frame);
+  },[layoutPlan]);
   function layoutGraph() {
     const ops = gridOperations(places, selected);
     if (ops.length) void s.run(ops, "卡片对齐网格");
@@ -1205,6 +1256,7 @@ function EditorSurface(props: CanvasEditorProps) {
   }, [canvasId]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
+      if(layoutOpen){if(e.key==="Escape"){e.preventDefault();closeLayout();}return;}
       if(store.getState().imagePreview || store.getState().filePreview || settingsOpen)return;
       if (e.key === "Escape" && archiveOpen) { setArchiveOpen(false); return; }
       if (e.key === "Escape" && navigationOpen) {
@@ -1237,7 +1289,7 @@ function EditorSurface(props: CanvasEditorProps) {
     };
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
-  }, [selected.join(","), snapshot, dialog, mode, navigationOpen, archiveOpen, settingsOpen]);
+  }, [selected.join(","), snapshot, dialog, mode, navigationOpen, archiveOpen, settingsOpen, layoutOpen, layoutBusy]);
   if (!snapshot)
     return (
       <div className="loading-screen">
@@ -1379,6 +1431,10 @@ function EditorSurface(props: CanvasEditorProps) {
         <button className="header-icon" aria-label="设置" title="设置" onClick={() => { setMode('edit'); setSettingsOpen(true); }}><Settings size={18}/></button>
         <div className="avatar">我</div>
       </header>
+      {layoutOpen&&<><div className="auto-layout-shield" data-picker-ignore="true"/>
+        <AutoLayoutPanel mode={layoutMode} spacing={layoutSpacing} plan={layoutPlan} stale={layoutStale} busy={layoutBusy} error={layoutError} selectedCount={selected.length}
+          onMode={value=>{clearLayoutPreview();setLayoutMode(value);}} onSpacing={value=>{clearLayoutPreview();setLayoutSpacing(value);}}
+          onPreview={()=>void previewLayout()} onApply={()=>void applyLayout()} onClose={closeLayout}/></>}
       {settingsOpen && <SettingsPage zoomLocked={lockedZoom !== null} onClose={() => setSettingsOpen(false)} onApplyZoom={async zoom => { if (lockedZoom !== null) return; await flow.zoomTo(zoom); remember(); setSettingsOpen(false); }} />}
       <div className="workspace">
         <main
@@ -1427,6 +1483,7 @@ function EditorSurface(props: CanvasEditorProps) {
               >
                 <Search size={16} />
               </button>
+              <button aria-label="自动布局" onClick={()=>{setMode('edit');setActiveLine(null);setNavigationOpen(false);setArchiveOpen(false);setLayoutError('');layoutViewport.current=flow.getViewport();setLayoutOpen(true);}}><LayoutTemplate size={14}/>自动布局</button>
               <button onClick={layoutGraph} title="选中时对齐所选卡片，未选中时对齐本层全部卡片">
                 <GitBranch size={14} />
                 对齐网格
@@ -1478,14 +1535,14 @@ function EditorSurface(props: CanvasEditorProps) {
           )}
           <ActionContext.Provider value={actions}>
             <ReactFlow<CanvasNodeType>
-              nodes={nodes}
+              nodes={layoutPlan ? nodes.map(n=>layoutPlan.positions[n.id]?{...n,position:layoutPlan.positions[n.id],draggable:false,selectable:false}:n) : nodes}
               edges={edges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={nodesChanged}
-              onNodeDrag={(_event, _node, dragged) => setArchiveHover(overArchiveBin(dragged))}
-              onNodeDragStop={(_event, _node, dragged) => {
-                const archive = overArchiveBin(dragged);
+              onNodeDrag={(event) => setArchiveHover(overArchiveBin(event))}
+              onNodeDragStop={(event, _node, dragged) => {
+                const archive = overArchiveBin(event);
                 setArchiveHover(false);
                 if (archive) {
                   // Keep stored geometry: dropping in the bin changes only archive state.
@@ -1670,7 +1727,7 @@ function EditorSurface(props: CanvasEditorProps) {
             />
 
           </div>
-          <button ref={archiveBin} data-picker-ignore="true" className={`canvas-archive-bin ${archiveHover ? 'drag-over' : ''}`} aria-label="卡片收纳箱" title="卡片边缘碰到收纳箱后松手归档；点击查看并恢复。共享卡片的所有引用视图同步归档。" aria-expanded={archiveOpen} onClick={() => setArchiveOpen(!archiveOpen)}><Archive size={22}/>{archivedCards.length > 0 && <span>{archivedCards.length}</span>}</button>
+          <button ref={archiveBin} data-picker-ignore="true" className={`canvas-archive-bin ${archiveHover ? 'drag-over' : ''}`} aria-label="卡片收纳箱" title="拖动时将鼠标移入收纳箱后松手归档；点击查看并恢复。共享卡片的所有引用视图同步归档。" aria-expanded={archiveOpen} onClick={() => setArchiveOpen(!archiveOpen)}><Archive size={22}/>{archivedCards.length > 0 && <span>{archivedCards.length}</span>}</button>
           {archiveOpen && <section data-picker-ignore="true" className="canvas-archive-panel" aria-label="已归档卡片">
             <header><strong>收纳箱 · 当前画布</strong><button aria-label="关闭收纳箱" onClick={() => setArchiveOpen(false)}><X size={16}/></button></header>
             <small>归档保留内容、连线和子画布；恢复回到原位置。</small>
