@@ -320,6 +320,7 @@ function EditorSurface(props: CanvasEditorProps) {
   const [layoutError,setLayoutError]=useState('');
   const [layoutBusy,setLayoutBusy]=useState(false);
   const layoutViewport=useRef<Viewport|null>(null);
+  const layoutPan=useRef<{x:number;y:number;viewport:Viewport}|null>(null);
   const layoutMeasurements=useRef<Map<string,{width:number;height:number}>>(new Map());
   const pendingLocation = useRef<{ id: string; canvasId: string } | null>(null);
   const entities = snapshot?.entities || [],
@@ -1140,7 +1141,7 @@ function EditorSurface(props: CanvasEditorProps) {
     return original && (Math.abs(original.width-(n.measured?.width||n.data.placement.data.width))>1 || Math.abs(original.height-(n.measured?.height||n.data.placement.data.height))>1);
   }));
   function clearLayoutPreview(restoreViewport=true) {
-    setLayoutPlan(null);setLayoutError('');
+    setLayoutPlan(null);setLayoutError('');layoutPan.current=null;
     if(restoreViewport&&layoutViewport.current)void flow.setViewport(layoutViewport.current);
   }
   function closeLayout() {
@@ -1431,7 +1432,10 @@ function EditorSurface(props: CanvasEditorProps) {
         <button className="header-icon" aria-label="设置" title="设置" onClick={() => { setMode('edit'); setSettingsOpen(true); }}><Settings size={18}/></button>
         <div className="avatar">我</div>
       </header>
-      {layoutOpen&&<><div className="auto-layout-shield" data-picker-ignore="true"/>
+      {layoutOpen&&<><div className={`auto-layout-shield ${layoutPlan?'previewing':''}`} data-picker-ignore="true"
+          onPointerDown={event=>{if(layoutPlan){layoutPan.current={x:event.clientX,y:event.clientY,viewport:flow.getViewport()};event.currentTarget.setPointerCapture(event.pointerId);}}}
+          onPointerMove={event=>{const pan=layoutPan.current;if(pan)void flow.setViewport({...pan.viewport,x:pan.viewport.x+event.clientX-pan.x,y:pan.viewport.y+event.clientY-pan.y});}}
+          onPointerUp={()=>{layoutPan.current=null;}} onPointerCancel={()=>{layoutPan.current=null;}}/>
         <AutoLayoutPanel mode={layoutMode} spacing={layoutSpacing} plan={layoutPlan} stale={layoutStale} busy={layoutBusy} error={layoutError} selectedCount={selected.length}
           onMode={value=>{clearLayoutPreview();setLayoutMode(value);}} onSpacing={value=>{clearLayoutPreview();setLayoutSpacing(value);}}
           onPreview={()=>void previewLayout()} onApply={()=>void applyLayout()} onClose={closeLayout}/></>}
@@ -1483,7 +1487,7 @@ function EditorSurface(props: CanvasEditorProps) {
               >
                 <Search size={16} />
               </button>
-              <button aria-label="自动布局" onClick={()=>{setMode('edit');setActiveLine(null);setNavigationOpen(false);setArchiveOpen(false);setLayoutError('');layoutViewport.current=flow.getViewport();setLayoutOpen(true);}}><LayoutTemplate size={14}/>自动布局</button>
+              <button aria-label="自动布局" onClick={()=>{setMode('edit');setActiveLine(null);setNavigationOpen(false);setArchiveOpen(false);setProjectMenu(false);setLayoutError('');layoutViewport.current=flow.getViewport();setLayoutOpen(true);}}><LayoutTemplate size={14}/>自动布局</button>
               <button onClick={layoutGraph} title="选中时对齐所选卡片，未选中时对齐本层全部卡片">
                 <GitBranch size={14} />
                 对齐网格

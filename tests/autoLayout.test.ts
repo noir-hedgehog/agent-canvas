@@ -69,3 +69,9 @@ test('folded descendants translate with their visible parent while keeping inter
  const original=snap.entities.find(e=>e.id==='showcase-map:node-0:placement')!;
  for(const child of children){assert.equal(plan.positions[child.id].x-child.data.x,plan.positions[original.id].x-original.data.x);assert.equal(plan.positions[child.id].y-child.data.y,plan.positions[original.id].y-original.data.y);}
 });
+test('local obstacle avoidance prefers a nearby horizontal adjustment over a large vertical jump',()=>{
+ const nodes=[n('a',510,30,330,250),n('b',900,30,330,200)];
+ const obstacles=[n('left',30,30,430,250),n('below',510,430,800,900)];
+ const result=autoLayout({nodes,links:[{source:'a',target:'b',kind:'association'}],obstacles,mode:'smart',spacing:'loose'});
+ clear(nodes,result.positions,obstacles);assert.equal(result.positions.a.y,30);assert.equal(result.positions.a.x,540);
+});

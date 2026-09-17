@@ -2230,3 +2230,5 @@
 .agentcanvas .auto-layout-options select { width:100%; padding:8px; border:1px solid #e5ddeb; background:#fcfaff; border-radius:7px; color:#493e54; }
 .agentcanvas .auto-layout-panel footer { justify-content:flex-end; margin-top:16px; }
 .agentcanvas .layout-preview-status { color:#795994; background:#f7f2fb; padding:9px; border-radius:7px; }
+.agentcanvas .auto-layout-shield.previewing { cursor:grab; touch-action:none; }
+.agentcanvas .auto-layout-shield.previewing:active { cursor:grabbing; }

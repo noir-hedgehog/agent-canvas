@@ -31,7 +31,7 @@ test('layout preview never saves; cancel restores, apply is one undoable batch, 
 
 test('local selection layout preserves all other placements',async({page})=>{
  await ready(page);
- const a=page.locator('[data-id="showcase-basics-place"]'),b=page.locator('[data-id="showcase-relations-place"]');
+ const a=page.locator('.react-flow__node[data-id="showcase-basics-place"]'),b=page.locator('.react-flow__node[data-id="showcase-relations-place"]');
  await a.click({position:{x:6,y:6}});await b.click({position:{x:6,y:6},modifiers:['Shift']});
  await expect(page.locator('.react-flow__node.selected')).toHaveCount(2);
  const before=await positions(page);
@@ -47,7 +47,7 @@ test('local selection layout preserves all other placements',async({page})=>{
 
 test('large card overlapping bin stays active; pointer inside bin highlights and archives on release',async({page})=>{
  await ready(page);await page.getByRole('button',{name:'适应画布',exact:true}).click();
- const card=page.locator('[data-id="showcase-tasks-place"]'),bin=page.getByRole('button',{name:'卡片收纳箱',exact:true});
+ const card=page.locator('.react-flow__node[data-id="showcase-tasks-place"]'),bin=page.getByRole('button',{name:'卡片收纳箱',exact:true});
  await card.hover({position:{x:15,y:12}});
  let box=(await card.boundingBox())!,target=(await bin.boundingBox())!;
  await page.mouse.move(box.x+15,box.y+12);await page.mouse.down();
@@ -63,4 +63,16 @@ test('large card overlapping bin stays active; pointer inside bin highlights and
  await expect(bin).toHaveClass(/drag-over/);await page.mouse.up();
  await expect(card).toHaveCount(0);
  await page.getByRole('button',{name:'撤销',exact:true}).click();await expect(card).toBeVisible();
+});
+
+test('preview requires recalculation after asynchronous card measurement changes',async({page})=>{
+ await ready(page);await page.getByRole('button',{name:'自动布局',exact:true}).click();
+ const panel=page.getByRole('dialog',{name:'自动布局'});
+ await panel.getByRole('button',{name:'预览布局',exact:true}).click();await expect(panel.getByRole('button',{name:'应用布局',exact:true})).toBeEnabled();
+ // Simulate a late media/font measurement, without editing or saving model data.
+ await page.locator('.react-flow__node[data-id="showcase-basics-place"] .canvas-card').evaluate(el=>{(el as HTMLElement).style.height='900px';});
+ await expect(panel.getByText('内容或尺寸已变化，请重新预览后再应用。')).toBeVisible();
+ await expect(panel.getByRole('button',{name:'应用布局',exact:true})).toBeDisabled();
+ await panel.getByRole('button',{name:'重新预览',exact:true}).click();
+ await expect(panel.getByRole('button',{name:'应用布局',exact:true})).toBeEnabled();
 });

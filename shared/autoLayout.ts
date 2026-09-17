@@ -12,6 +12,26 @@ const reading = (a:LayoutRect,b:LayoutRect) => a.y-b.y || a.x-b.x || a.id.locale
 const bounds = (nodes:LayoutRect[]) => ({width:Math.max(...nodes.map(n=>n.x+n.width)),height:Math.max(...nodes.map(n=>n.y+n.height))});
 const overlap = (a:Omit<LayoutRect,'id'>,b:Omit<LayoutRect,'id'>,gap:number) => a.x < b.x+b.width+gap && a.x+a.width+gap > b.x && a.y < b.y+b.height+gap && a.y+a.height+gap > b.y;
 
+function avoidObstacles(box:Omit<LayoutRect,'id'>,obstacles:LayoutRect[],gap:number) {
+ const origin={x:box.x,y:box.y},queue=[origin],seen=new Set<string>();
+ const distance=(p:Position)=>(p.x-origin.x)**2+(p.y-origin.y)**2;
+ // Try nearby right/down placements first, so a small gap adjustment does not
+ // unnecessarily send a selection below every other group on the canvas.
+ for(let attempt=0;queue.length&&attempt<512;attempt++){
+  queue.sort((a,b)=>distance(a)-distance(b)||a.y-b.y||a.x-b.x);
+  const point=queue.shift()!,key=`${point.x}:${point.y}`;if(seen.has(key))continue;seen.add(key);
+  const hits=obstacles.filter(o=>overlap({...box,...point},o,gap));
+  if(!hits.length)return {...box,...point};
+  for(const hit of hits){queue.push({x:hit.x+hit.width+gap,y:point.y},{x:point.x,y:hit.y+hit.height+gap});}
+ }
+ const result={...box};
+ for(let attempt=0;attempt<=obstacles.length;attempt++){
+  const hits=obstacles.filter(o=>overlap(result,o,gap));if(!hits.length)return result;
+  result.y=Math.max(...hits.map(o=>o.y+o.height+gap));
+ }
+ return result;
+}
+
 function grid(nodes:LayoutRect[],gap:number,width:number):LayoutRect[] {
  let x=0,y=0,rowHeight=0;
  return [...nodes].sort(reading).map(n=>{
@@ -106,12 +126,8 @@ export function autoLayout(input:{nodes:LayoutRect[];links:LayoutLink[];obstacle
   else arranged=layered(group,directed,gap);
   const size=bounds(arranged);
   if(x&&x+size.width>width){x=0;y+=rowHeight+gap*2;rowHeight=0;}
-  const box={x:anchor.x+x,y:anchor.y+y,...size};
   // Non-selected cards are immovable obstacles. Move the whole group, preserving its structure.
-  for(let attempt=0;attempt<=occupied.length;attempt++){
-   const collisions=occupied.filter(o=>overlap(box,o,gap));if(!collisions.length)break;
-   box.y=Math.max(...collisions.map(o=>o.y+o.height+gap));
-  }
+  const box=avoidObstacles({x:anchor.x+x,y:anchor.y+y,...size},occupied,gap);
   for(const n of arranged)positions[n.id]={x:box.x+n.x,y:box.y+n.y};
   occupied.push({id:`group-${occupied.length}`,...box});
   rowHeight=Math.max(rowHeight,box.y-anchor.y-y+size.height);x+=size.width+gap*2;
@@ -127,6 +143,7 @@ export function createLayoutPlan(entities:Entity[],canvasId:string,selected:stri
  const byId=new Map(entities.map(e=>[e.id,e])),measured=new Map(measurements.map(n=>[n.id,n]));
  const places=entities.filter(p=>p.kind==='placement'&&p.canvasId===canvasId&&!p.deleted&&!isArchived(byId.get(p.data.objectId))&&byId.get(p.data.objectId)&&!byId.get(p.data.objectId)!.deleted);
  const visible=places.filter(p=>!measured.get(p.id)?.hidden),movable=visible.filter(p=>!selected.length||selected.includes(p.id));
+ if(movable.length>300)throw new Error('单次最多整理 300 张卡片，请分组选中后整理');
  if(movable.length<2)throw new Error(selected.length?'请至少选择两张可见卡片':'当前层至少需要两张卡片');
  const rect=(p:Entity):LayoutRect=>({id:p.id,x:p.data.x,y:p.data.y,width:measured.get(p.id)?.width||p.data.width,height:measured.get(p.id)?.height||p.data.height});
  const objectPlacement=new Map(places.map(p=>[p.data.objectId,p.id])),links:LayoutLink[]=[];

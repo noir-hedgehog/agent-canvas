@@ -21,7 +21,7 @@ export function AutoLayoutPanel(props:{mode:LayoutMode;spacing:LayoutSpacing;pla
    <label>卡片间距<select aria-label="卡片间距" disabled={props.busy} value={props.spacing} onChange={e=>props.onSpacing(e.target.value as LayoutSpacing)}><option value="compact">紧凑</option><option value="standard">标准</option><option value="loose">宽松</option></select></label>
   </div>
   <small>树状与流程向右展开；按实际卡片尺寸排列，保留内容、关系和标签。</small>
-  {props.plan&&<p className="layout-preview-status" role="status">预览 · {props.plan.count} 张卡片 · {props.plan.groups} 组 · 尚未保存{props.plan.fallbacks>0?'。存在回路或多个父级，已使用分层布局。':''}</p>}
+  {props.plan&&<p className="layout-preview-status" role="status">预览 · {props.plan.count} 张卡片 · {props.plan.groups} 组 · 尚未保存。可拖动画布查看。{props.plan.fallbacks>0?'。存在回路或多个父级，已使用分层布局。':''}</p>}
   {props.stale&&<p role="alert" className="form-error">内容或尺寸已变化，请重新预览后再应用。</p>}
   {props.error&&<p role="alert" className="form-error">{props.error}</p>}
   <footer><button disabled={props.busy} onClick={props.onClose}>取消</button><button disabled={props.busy} onClick={props.onPreview}>{props.plan?'重新预览':'预览布局'}</button><button className="primary" disabled={props.busy||!props.plan||props.stale||!props.plan.operations.length} onClick={props.onApply}>{props.busy?'处理中…':'应用布局'}</button></footer>
