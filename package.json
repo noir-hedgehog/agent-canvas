@@ -1,0 +1,49 @@
+{
+  "name": "agentcanvas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4318 --strictPort",
+    "server": "tsx server/index.ts",
+    "start": "tsx server/index.ts",
+    "stop": "tsx scripts/stop.ts",
+    "build": "tsc --noEmit && vite build",
+    "mcp": "tsx server/mcp.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "backup": "tsx scripts/backup.ts",
+    "build:demo": "tsc --noEmit && vite build --mode demo",
+    "package:local": "node scripts/package-local.mjs",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@xyflow/react": "12.11.6",
+    "express": "^5.1.0",
+    "lucide-react": "^0.577.0",
+    "mermaid": "^12.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.11",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/express": "^5.0.6",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "@playwright/test": "^1.55.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

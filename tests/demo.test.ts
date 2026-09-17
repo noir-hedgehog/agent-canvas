@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DemoWorkspace} from '../src/demoApi';
+test('Pages edits persist, retry once, reject stale versions, undo, and keep MCP unavailable',async()=>{
+ const values=new Map<string,string>();const storage={getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>{values.set(k,v);}};
+ let demo=new DemoWorkspace(storage);
+ const projectId='showcase-project';const route='/api/projects/'+projectId;
+ const change={projectId,requestId:'edit',summary:'演示编辑',operations:[{op:'update',id:'showcase-basics',expectedVersion:1,patch:{body:'修改后'}}]};
+ const first=await demo.request('/api/batch',change);
+ assert.equal((await demo.request('/api/batch',change)).id,first.id);
+ demo=new DemoWorkspace(storage);
+ assert.equal((await demo.request(route)).entities.find((e:any)=>e.id==='showcase-basics').data.body,'修改后');
+ await assert.rejects(demo.request('/api/batch',{...change,requestId:'stale'}),/版本/);
+ await demo.request('/api/undo',{projectId,changeId:first.id,requestId:'undo'});
+ assert.notEqual((await demo.request(route)).entities.find((e:any)=>e.id==='showcase-basics').data.body,'修改后');
+ await assert.rejects(demo.request('/api/runtime'),/不运行 MCP/);
+ const before=JSON.stringify(await demo.request(route));
+ storage.setItem=()=>{throw new Error('quota');};
+ await assert.rejects(demo.request('/api/batch',{...change,requestId:'quota',operations:[{...change.operations[0],expectedVersion:3}]}),/quota/);
+ assert.equal(JSON.stringify(await demo.request(route)),before);
+});

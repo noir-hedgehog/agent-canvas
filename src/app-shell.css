@@ -1,0 +1,44 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: #f8f9fb;
+}
+.embed-demo {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.embed-host {
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #37313f;
+  color: #ece4f3;
+  padding: 15px 25px;
+  font-size: 12px;
+}
+.embed-host span {
+  color: #bdb0c8;
+}
+.embed-host output {
+  font-size: 10px;
+  margin-left: auto;
+  color: #c4b4d1;
+}
+.embed-demo > .agentcanvas {
+  height: calc(100vh - 64px);
+}
+.public-demo { height:100%; display:flex; flex-direction:column; }
+.public-demo > .agentcanvas { flex:1; min-height:0; height:auto; }
+.demo-banner { min-height:44px; display:flex; align-items:center; padding:8px 22px; gap:18px; background:#30293a; color:#f8f4fc; font:12px system-ui; box-sizing:border-box; }
+.demo-banner span { color:#c9bbd7; }
+.demo-banner nav { margin-left:auto; display:flex; align-items:center; gap:16px; }
+.demo-banner a { color:#f1d789; text-decoration:none; }
+.demo-banner button { cursor:pointer; background:transparent; border:0; color:#ddd0e9; font:inherit; }
+@media(max-width:850px){.demo-banner{flex-wrap:wrap;gap:8px}.demo-banner span{display:none}}
