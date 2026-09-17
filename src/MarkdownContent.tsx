@@ -1,5 +1,5 @@
-import Markdown, {defaultUrlTransform} from 'react-markdown';
-import {useState} from 'react';
+import Markdown, {defaultUrlTransform,type Components} from 'react-markdown';
+import {useState,useMemo,useRef} from 'react';
 import remarkGfm from 'remark-gfm';
 import {api, useEditorApi} from './state';
 import type {Entity} from '../shared/model';
@@ -18,15 +18,18 @@ export function MarkdownContent({text,entity,onEdit}: {text:string;entity?:Entit
     } catch(error) {setFileError(`${(error as Error).message}。请检查链接；本地相对路径从工作区解析。`);}
     finally {setOpening(false);}
   }
-  return <><Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={(url,key,node)=>entity && node.tagName==='a' && inlineFileSource(url) ? url : defaultUrlTransform(url)} components={{
-    pre: ({node,children,...props}) => {
+  const editRef=useRef(onEdit);editRef.current=onEdit;
+  // Keep the pre component stable across React Flow measurement updates.
+  const pre=useMemo<Components['pre']>(()=>({node,children,...props}) => {
       const code=node?.children[0];
       if(code?.type==='element' && code.tagName==='code' && Array.isArray(code.properties.className) && code.properties.className.includes('language-mermaid')) {
         const source=code.children.map(child=>child.type==='text'?child.value:'').join('').replace(/\n$/,'');
-        return <MermaidBlock source={source} onEdit={onEdit}/>;
+        return <MermaidBlock source={source} onEdit={()=>editRef.current?.()}/>;
       }
       return <pre {...props}>{children}</pre>;
-    },
+    } ,[]);
+  return <><Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={(url,key,node)=>entity && node.tagName==='a' && inlineFileSource(url) ? url : defaultUrlTransform(url)} components={{
+    pre,
     a: ({node,...props}) => {
       const source=entity && props.href ? inlineFileSource(props.href) : undefined;
       return <a {...props} target={source?undefined:'_blank'} rel="noreferrer" title={source?'预览文件并批注':props.title} onClick={e=>{e.stopPropagation();if(source){e.preventDefault();void openFile(source);}}}/>;
