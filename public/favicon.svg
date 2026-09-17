@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>AgentCanvas</title>
+  <rect width="64" height="64" rx="18" fill="#292532"/>
+  <path fill="#fff" fill-rule="evenodd" d="M14 36c0-8 5-14 13-14 4 0 7 2 9 5v-4h7v27h-7v-4c-2 3-5 5-9 5-8 0-13-6-13-15Zm8 0c0 5 3 8 7 8s7-3 7-8-3-8-7-8-7 3-7 8Z"/>
+  <path d="M40 22 52 10M42 10h10v10" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
