@@ -5,7 +5,8 @@ test('public demo: render, Markdown persistence, three levels, media previews an
  await page.goto('./');
  await expect(page.getByText('公开示例 · 修改仅存在当前浏览器 · 未连接 Agent')).toBeVisible();
  await expect(page.locator('.canvas-card').first()).toBeVisible();
- await expect(page.getByRole('img',{name:'Mermaid 图表',exact:true})).toBeVisible();
+ try { await expect(page.locator('.mermaid-preview img')).toBeVisible(); } catch(error) { console.log('BROWSER_ERRORS',errors,await page.locator('body').innerText()); throw error; }
+ await page.getByRole('button',{name:'适应画布',exact:true}).click();
  await page.screenshot({path:'test-results/demo-overview.png',fullPage:true});
  const basics=page.locator('[data-id="showcase-basics-place"]');
  await basics.getByRole('button',{name:'编辑01 / 卡片是工作的基本单元正文'}).click();
@@ -17,6 +18,7 @@ test('public demo: render, Markdown persistence, three levels, media previews an
  await page.getByRole('button',{name:'进入 持久化共创',exact:true}).click();
  await expect(page.getByText('使用上方「主画布」或面包屑返回。',{exact:false})).toBeVisible();
  await page.getByRole('navigation',{name:'画布路径'}).getByRole('button',{name:'主画布',exact:true}).click();
+ await page.getByRole('button',{name:'适应画布',exact:true}).click();
  await page.getByRole('link',{name:'示例图片',exact:true}).click();
  await expect(page.getByRole('img',{name:'board.png',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'关闭文件预览'}).click();
