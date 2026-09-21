@@ -1,3 +1,4 @@
+import {sectionsIn,sectionMembers} from "./sections";
 import {updateOp, type Entity, type Operation} from './model';
 import {isArchived} from './archive';
 
@@ -142,7 +143,10 @@ export function layoutSignature(entities:Entity[],canvasId:string):string {
 export function createLayoutPlan(entities:Entity[],canvasId:string,selected:string[],measurements:Measurement[],mode:LayoutMode,spacing:LayoutSpacing) {
  const byId=new Map(entities.map(e=>[e.id,e])),measured=new Map(measurements.map(n=>[n.id,n]));
  const places=entities.filter(p=>p.kind==='placement'&&p.canvasId===canvasId&&!p.deleted&&!isArchived(byId.get(p.data.objectId))&&byId.get(p.data.objectId)&&!byId.get(p.data.objectId)!.deleted);
- const visible=places.filter(p=>!measured.get(p.id)?.hidden),movable=visible.filter(p=>!selected.length||selected.includes(p.id));
+ const sections=sectionsIn(entities,canvasId),owner=new Map(sections.flatMap(e=>(e.data.placementIds as string[]).map(id=>[id,e.id] as const)));
+ const visible=places.filter(p=>!measured.get(p.id)?.hidden);
+ const selectedUnits=new Set(selected.map(id=>owner.get(id)||id));
+ const movable=visible.filter(p=>!selected.length||selectedUnits.has(owner.get(p.id)||p.id));
  if(movable.length>300)throw new Error('单次最多整理 300 张卡片，请分组选中后整理');
  if(movable.length<2)throw new Error(selected.length?'请至少选择两张可见卡片':'当前层至少需要两张卡片');
  const rect=(p:Entity):LayoutRect=>({id:p.id,x:p.data.x,y:p.data.y,width:measured.get(p.id)?.width||p.data.width,height:measured.get(p.id)?.height||p.data.height});
@@ -153,16 +157,24 @@ export function createLayoutPlan(entities:Entity[],canvasId:string,selected:stri
   if(e.kind==='mind'&&e.data.parentId)links.push({source:objectPlacement.get(e.data.parentId)!,target:objectPlacement.get(e.id)!,kind:'parent'});
   if(e.kind==='edge')links.push({source:objectPlacement.get(e.data.source)!,target:objectPlacement.get(e.data.target)!,kind:e.data.lineStyle==='association'?'association':e.data.lineStyle==='containment'?'parent':'flow'});
  }
- const result=autoLayout({nodes:movable.map(rect),obstacles:visible.filter(p=>!movable.includes(p)).map(rect),links,mode,spacing});
+ const units:LayoutRect[]=visible.filter(p=>!owner.has(p.id)).map(rect);
+ for(const section of sections){
+   const members=sectionMembers(section,entities).filter(p=>visible.includes(p));if(!members.length)continue;
+   const r=members.map(rect),d=section.data;
+   units.push({id:section.id,x:d.x,y:d.y,width:Math.max(d.width,measured.get(section.id)?.width||0,...r.map(p=>p.x+p.width-d.x+28)),height:Math.max(d.height,measured.get(section.id)?.height||0,...r.map(p=>p.y+p.height-d.y+28))});
+ }
+ const result=autoLayout({nodes:units.filter(n=>!selected.length||selectedUnits.has(n.id)),obstacles:units.filter(n=>selected.length&&!selectedUnits.has(n.id)),links:links.map(e=>({...e,source:owner.get(e.source)||e.source,target:owner.get(e.target)||e.target})).filter(e=>e.source!==e.target),mode,spacing});
+ for(const section of sections){const position=result.positions[section.id];if(position)for(const p of sectionMembers(section,entities))result.positions[p.id]={x:p.data.x+position.x-section.data.x,y:p.data.y+position.y-section.data.y};}
  // A folded branch follows its nearest visible ancestor as a unit, without rearranging its hidden nodes.
- for(const p of places.filter(p=>measured.get(p.id)?.hidden)){
+ for(const p of places.filter(p=>measured.get(p.id)?.hidden&&!owner.has(p.id))){
   let object=byId.get(p.data.objectId);const seen=new Set<string>();
   while(object?.data.parentId&&!seen.has(object.id)){
    seen.add(object.id);object=byId.get(object.data.parentId);const parent=places.find(q=>q.data.objectId===object?.id);
    if(parent&&!measured.get(parent.id)?.hidden){const next=result.positions[parent.id];if(next)result.positions[p.id]={x:p.data.x+next.x-parent.data.x,y:p.data.y+next.y-parent.data.y};break;}
   }
  }
- const operations:Operation[]=places.flatMap(p=>{const next=result.positions[p.id];return next&&(Math.abs(next.x-p.data.x)>.01||Math.abs(next.y-p.data.y)>.01)?[updateOp(p,next)]:[];});
+ const affected=[...new Map([...places,...sections,...sections.flatMap(section=>result.positions[section.id]?sectionMembers(section,entities):[])].map(e=>[e.id,e])).values()];
+ const operations:Operation[]=affected.flatMap(p=>{const next=result.positions[p.id];return next&&(Math.abs(next.x-p.data.x)>.01||Math.abs(next.y-p.data.y)>.01)?[updateOp(p,next)]:[];});
  if(operations.length>300)throw new Error('单次最多整理 300 张卡片，请分组选中后整理');
  return {...result,operations,canvasId,signature:layoutSignature(entities,canvasId),count:movable.length};
 }

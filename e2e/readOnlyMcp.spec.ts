@@ -37,6 +37,18 @@ test('real MCP updates remain live over SSE while browser is read-only; versione
   await expect(page.locator('.discussion-card blockquote')).toHaveText('这段文字等待 Agent 更新');
   await expect(page.locator('.discussion-card')).toContainText('原卡片已更新');
   await page.screenshot({path:'test-results/readonly-live-mcp.png',fullPage:true});
+  await invoke('create_content',{projectId:project.id,canvasId:canvas,kind:'card',data:{title:'Second card',body:'Section member'},x:430,y:100,requestId:'second-card'});
+  const places=app.store.all(project.id).filter(e=>e.kind==='placement').map(e=>e.id);
+  const args={projectId:project.id,canvasId:canvas,placementIds:places,title:'MCP Section',requestId:'mcp-section'};
+  const group=await invoke('create_section',args);expect((await invoke('create_section',args)).id).toBe(group.id);
+  await expect(page.locator('.canvas-section')).toHaveCount(1);
+  const before=app.store.get(project.id,'mcp-section:section');
+  const moveArgs={projectId:project.id,id:before.id,expectedVersion:before.version,x:before.data.x+100,y:before.data.y+80,requestId:'mcp-section-move'};
+  const moved=await invoke('move_section',moveArgs);expect((await invoke('move_section',moveArgs)).id).toBe(moved.id);
+  await expect(page.locator('.react-flow__node-section')).toHaveCSS('transform',`matrix(1, 0, 0, 1, ${moveArgs.x}, ${moveArgs.y})`);
+  expect(app.store.all(project.id).find(e=>e.kind==='placement'&&e.data.objectId==='test-card')!.data.x).toBe(180);
+  const invalid:any=await client.callTool({name:'move_section',arguments:{...moveArgs,x:999}});expect(invalid.isError).toBe(true);
+
  }finally{
   await client.close();await page.goto('about:blank');server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));app.store.close();rmSync(dir,{recursive:true,force:true});
  }

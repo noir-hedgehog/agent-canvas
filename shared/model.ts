@@ -17,6 +17,7 @@ export const kinds = [
   "space",
   "relation",
   "asset",
+  "section",
 ] as const;
 export type Kind = (typeof kinds)[number];
 export const cardKinds = ["card", "space", "note", "text", "image", "tasks", "status", "diagram", "mind", "flow"] as const;

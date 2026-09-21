@@ -21,6 +21,8 @@ import {
   type Edge,
   type NodeChange,
   type Viewport,
+  NodeToolbar,
+  Position,
 } from "@xyflow/react";
 import {
   Archive,
@@ -82,6 +84,8 @@ import {
   type CanvasNodeType,
   type Actions,
 } from "./CanvasNode";
+import {SectionNode} from "./SectionNode";
+import {createSection,moveSection,sectionsIn,sectionMembers} from "../shared/sections";
 import {GlobalSync} from "./GlobalSync";
 import {ImagePreview} from "./ImagePreview";
 import { FilePreview } from './FilePreview';
@@ -266,7 +270,7 @@ function DialogView({
     </div>
   );
 }
-const nodeTypes = { content: CanvasNode };
+const nodeTypes = { content: CanvasNode, section: SectionNode };
 const edgeTypes = { relation: RelationEdge };
 const visibleKinds = [
   "card", "space",
@@ -343,6 +347,8 @@ function EditorSurface(props: CanvasEditorProps) {
       .filter((p) => selected.includes(p.id))
       .map((p) => byId.get(p.data.objectId))
       .filter(Boolean) as Entity[];
+  const sections=sectionsIn(entities,canvasId);
+  const sectionByPlacement=new Map(sections.flatMap(section=>(section.data.placementIds as string[]).map(id=>[id,section] as const)));
   const selectedEntity = chosen[0];
   const current = byId.get(canvasId);
   const crumbs: Entity[] = [];
@@ -421,7 +427,10 @@ function EditorSurface(props: CanvasEditorProps) {
         {
           id: p.id,
           type: "content",
-          position: { x: p.data.x, y: p.data.y },
+          position: { x: p.data.x-(sectionByPlacement.get(p.id)?.data.x||0), y: p.data.y-(sectionByPlacement.get(p.id)?.data.y||0) },
+          parentId: sectionByPlacement.get(p.id)?.id,
+          draggable: sectionByPlacement.has(p.id) ? false : undefined,
+          extent: undefined,
           handles: nodeHandles(p.data.width, p.data.height),
           width: p.data.width,
           height: p.data.heightMode === 'fixed' ? p.data.height : undefined,
@@ -444,11 +453,17 @@ function EditorSurface(props: CanvasEditorProps) {
         },
       ];
     });
+    const sectionNodes:CanvasNodeType[]=sections.filter(section=>next.some(n=>n.parentId===section.id)).map(section=>({
+      id:section.id,type:'section',position:{x:section.data.x,y:section.data.y},
+      style:{width:section.data.width,height:section.data.height},width:section.data.width,height:section.data.height,
+      dragHandle:'.section-heading',connectable:false,selected:selected.includes(section.id),zIndex:-1,
+      data:{entity:section,placement:section},
+    }));
     setNodes((previous) =>
-      next.map((n) => {
+      [...sectionNodes,...next].map((n) => {
         const existing = previous.find((x) => x.id === n.id);
         const merged = { ...existing, ...n };
-        if (n.data.placement.data.heightMode !== 'fixed') {
+        if (n.type!=='section' && n.data.placement.data.heightMode !== 'fixed') {
           merged.handles = nodeHandles(n.data.placement.data.width, existing?.measured?.height || n.data.placement.data.height);
         }
         return existing?.dragging
@@ -571,6 +586,36 @@ function EditorSurface(props: CanvasEditorProps) {
       }),
     [snapshot, canvasId, revealedBranches, activeLine, mode, readOnly, layoutPlan],
   );
+  async function groupSelection(){
+    if(readOnly)return;
+    try{
+      await settleBrowserEdits();
+      const state=store.getState(),id=crypto.randomUUID();
+      const op=createSection(state.snapshot!.entities,canvasId,state.selected,'Section',id,flow.getNodes().map(n=>({id:n.id,width:n.measured?.width||n.data.placement.data.width,height:n.measured?.height||n.data.placement.data.height})));
+      if(await state.run([op],'组合为 Section'))store.setState({selected:[id]});
+    }catch(error){flash((error as Error).message);}
+  }
+  const dragSnapshot=useRef<Entity[]|null>(null);
+  function startDrag(){dragSnapshot.current=structuredClone(store.getState().snapshot?.entities||[]);}
+  async function finishDrag(event:MouseEvent|TouchEvent,dragged:CanvasNodeType[]){
+    setArchiveHover(false);
+    if(readOnly)return;
+    const baseline=dragSnapshot.current||entities;dragSnapshot.current=null;
+    const movedSections=dragged.filter(n=>n.type==='section');
+    const groupedIds=new Set(movedSections.flatMap(n=>n.data.entity.data.placementIds as string[]));
+    // Section moves never archive the group accidentally; only ordinary cards use the bin.
+    if(!movedSections.length&&overArchiveBin(event)){
+      await changeArchive([...new Set(dragged.filter(n=>n.type==='content').map(n=>n.data.entity.id))],true);
+      await s.refresh();return;
+    }
+    const ops:Operation[]=movedSections.flatMap(n=>{const section=baseline.find(e=>e.id===n.id)!;return moveSection(section,baseline,n.position.x,n.position.y);});
+    for(const n of dragged.filter(n=>n.type==='content'&&!groupedIds.has(n.id)&&!n.parentId)){
+      const p=baseline.find(e=>e.id===n.id)!;
+      if(p&&(p.data.x!==n.position.x||p.data.y!==n.position.y))ops.push(updateOp(p,{x:n.position.x,y:n.position.y}));
+    }
+    if(ops.length)await s.run(ops,movedSections.length?'移动 Section':'移动画布内容');
+    await s.refresh();
+  }
   const nodesChanged = useCallback(
     (changes: NodeChange<CanvasNodeType>[]) => {
       setNodes((ns) => applyNodeChanges(changes, ns).map(n => ({
@@ -1075,7 +1120,11 @@ function EditorSurface(props: CanvasEditorProps) {
   }
   function deleteSelection() {
     if(store.getState().readOnly)return;
-    if (!chosen.length) return;
+    if (!chosen.length) {
+      const groups=sections.filter(e=>selected.includes(e.id));
+      if(groups.length)void s.run(groups.map(e=>({op:'delete',id:e.id,expectedVersion:e.version})),'解除 Section').then(result=>{if(result)store.setState({selected:[]});});
+      return;
+    }
     const owns = [
       ...new Map(
         chosen.filter((e) => e.canvasId === canvasId).map((e) => [e.id, e]),
@@ -1203,7 +1252,8 @@ function EditorSurface(props: CanvasEditorProps) {
   },[layoutPlan]);
   function layoutGraph() {
     if(store.getState().readOnly)return;
-    const ops = gridOperations(places, selected);
+    const grouped=new Set(sections.flatMap(e=>e.data.placementIds as string[]));
+    const ops = [...gridOperations(places.filter(p=>!grouped.has(p.id)),selected),...sections.filter(e=>!selected.length||selected.includes(e.id)||e.data.placementIds.some((id:string)=>selected.includes(id))).flatMap(e=>moveSection(e,entities,Math.round(e.data.x/24)*24,Math.round(e.data.y/24)*24))];
     if (ops.length) void s.run(ops, "卡片对齐网格");
     else flash(places.length ? "卡片已对齐网格" : "先添加卡片，再对齐网格");
   }
@@ -1572,24 +1622,27 @@ function EditorSurface(props: CanvasEditorProps) {
           )}
           <ActionContext.Provider value={actions}>
             <ReactFlow<CanvasNodeType>
-              nodes={layoutPlan ? nodes.map(n=>layoutPlan.positions[n.id]?{...n,position:layoutPlan.positions[n.id],draggable:false,selectable:false}:n) : nodes}
+              nodes={nodes.map(n=>{
+                const parent=n.parentId?byId.get(n.parentId):undefined;
+                const next=layoutPlan?.positions[n.id];
+                const origin=parent?(layoutPlan?.positions[parent.id]||{x:parent.data.x,y:parent.data.y}):{x:0,y:0};
+                const preview=next?{...n,position:{x:next.x-origin.x,y:next.y-origin.y},draggable:false,selectable:false}:n;
+                if(n.type!=='section')return preview;
+                const children=nodes.filter(c=>c.parentId===n.id);
+                const width=Math.max(n.data.entity.data.width,...children.map(c=>c.position.x+(c.measured?.width||c.data.placement.data.width)+28));
+                const height=Math.max(n.data.entity.data.height,...children.map(c=>c.position.y+(c.measured?.height||c.data.placement.data.height)+28));
+                return {...preview,width,height,style:{width,height}};
+              })}
               edges={edges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={nodesChanged}
-              onNodeDrag={(event) => setArchiveHover(overArchiveBin(event))}
-              onNodeDragStop={(event, _node, dragged) => {
-                const archive = overArchiveBin(event);
-                setArchiveHover(false);
-                if (archive) {
-                  // Keep stored geometry: dropping in the bin changes only archive state.
-                  setNodes(ns => ns.map(n => ({...n, dragging:false, position:{x:n.data.placement.data.x,y:n.data.placement.data.y}})));
-                  void changeArchive([...new Set(dragged.map(n => n.data.entity.id))], true);
-                  return;
-                }
-                const ops = dragged.map(n => updateOp(n.data.placement, {x:n.position.x,y:n.position.y}));
-                if (ops.length) void s.run(ops, "移动画布内容");
-              }}
+              onNodeDragStart={startDrag}
+              onNodeDrag={(event,node)=>setArchiveHover(node.type!=='section'&&overArchiveBin(event))}
+              onNodeDragStop={(event,_node,dragged)=>void finishDrag(event,dragged)}
+              onSelectionDragStart={startDrag}
+              onSelectionDrag={(event,dragged)=>setArchiveHover(!dragged.some(n=>n.type==='section')&&overArchiveBin(event.nativeEvent))}
+              onSelectionDragStop={(event,dragged)=>void finishDrag(event.nativeEvent,dragged)}
               onMove={(_event, v) => setZoom(Math.round(v.zoom * 100))}
               onMoveEnd={remember}
               onConnect={(connection) => {
@@ -1639,6 +1692,11 @@ function EditorSurface(props: CanvasEditorProps) {
               fitView={false}
               defaultViewport={{ x: 60, y: 45, zoom: preferences.defaultZoom / 100 }}
             >
+              {selected.length>1 && <NodeToolbar nodeId={selected} isVisible position={Position.Top} className="multi-selection-toolbar nodrag nopan">
+                <span>已选择 {chosen.length} 张卡片</span>
+                {!readOnly && <button disabled={selected.some(id=>sectionByPlacement.has(id)||byId.get(id)?.kind==='section')} title={selected.some(id=>sectionByPlacement.has(id)||byId.get(id)?.kind==='section')?'请先解除已有 Section，再重新分组':'保留相对位置，组合为 Section'} onClick={()=>void groupSelection()}><Layers size={15}/>组合为 Section</button>}
+                <button onClick={()=>store.setState({panel:'comments'})}><MessageSquarePlus size={15}/>批注</button>
+              </NodeToolbar>}
               <Background
                 variant={BackgroundVariant.Dots}
                 gap={24}

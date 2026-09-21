@@ -1,3 +1,4 @@
+import {validateSections} from "../shared/sections";
 import {showcaseSnapshot} from '../shared/showcase';
 import {batchSchema} from '../shared/schema';
 import {fileFormat,type FileReference} from '../shared/fileReferences';
@@ -47,12 +48,14 @@ export class DemoWorkspace {
    // Demo changes are browser-only; local releases use the authoritative SQLite command service.
    let changed=true;
    while(changed){changed=false;for(const e of s.entities){if(e.deleted)continue;const owner=e.kind==='canvas'?e.data.ownerNodeId:e.kind==='mind'?e.data.parentId:e.kind==='placement'?e.data.objectId:null;if((e.canvasId&&s.entities.find(x=>x.id===e.canvasId)?.deleted)||(owner&&s.entities.find(x=>x.id===owner)?.deleted)){const before=structuredClone(e);e.deleted=true;e.version++;entries.push({before,after:structuredClone(e)});changed=true;}}}
+   validateSections(s.entities);
    const change:Change={id:crypto.randomUUID(),projectId:b.projectId,actor:'human',summary:b.summary,requestId:b.requestId,createdAt:new Date().toISOString(),entries};s.changes.unshift(change);this.save(data);return change;
   }
   if(route==='/api/undo') {
    const s=data.snapshots.find(s=>s.project.id===body.projectId),original=s?.changes.find(c=>c.id===body.changeId);if(!s||!original)throw new Error('变更不存在');
    const entries:Change['entries']=original.entries.map(entry=>{const current=s.entities.find(e=>e.id===entry.after.id)!;if(current.version!==entry.after.version)throw new Error('后续修改阻止撤销');return {before:structuredClone(current),after:entry.before?{...entry.before,version:current.version+1}:{...current,version:current.version+1,deleted:true}};});
    for(const e of entries)s.entities[s.entities.findIndex(x=>x.id===e.after.id)]=e.after;
+   validateSections(s.entities);
    const change:Change={id:crypto.randomUUID(),projectId:body.projectId,actor:'human',summary:'撤销演示变更',requestId:body.requestId,createdAt:new Date().toISOString(),entries,undoOf:original.id};s.changes.unshift(change);this.save(data);return change;
   }
   const match=route.match(/^\/api\/projects\/([^/]+)(.*)$/);

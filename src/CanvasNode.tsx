@@ -57,7 +57,7 @@ export type CanvasNodeType = Node<
     changed?: boolean;
     annotationCount?: number;
   },
-  "content"
+  "content" | "section"
 >;
 const labels: Record<string, string> = {
   mind: "思维导图",
@@ -71,8 +71,9 @@ const labels: Record<string, string> = {
   card: "空白卡片",
   space: "画布卡片",
 };
-export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNodeType>) {
+export function CanvasNode({ data, selected, isConnectable, parentId }: NodeProps<CanvasNodeType>) {
   const readOnly = useEditor(s=>s.readOnly);
+  const singleSelected = useEditor(s=>s.selected.length===1);
   const [resizing, setResizing] = useState(false);
   const viewport=useViewport();
   const { entity: e, placement: p } = data,
@@ -198,7 +199,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
   return (
     <>
       <NodeResizer
-        isVisible={selected && !readOnly}
+        isVisible={selected && singleSelected && !readOnly && !parentId}
         minWidth={e.kind === "tasks" ? 280 : 160}
         minHeight={graphNode ? 110 : 100}
         onResizeStart={() => setResizing(true)}
@@ -219,7 +220,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
         }}
       />
       <NodeToolbar
-        isVisible={selected && !readOnly}
+        isVisible={selected && singleSelected && !readOnly}
         position={Position.Top}
         align={p.data.x*viewport.zoom+viewport.x>window.innerWidth*.65?"end":p.data.x*viewport.zoom+viewport.x<220?"start":"center"}
         className="node-toolbar nodrag nopan"
@@ -270,7 +271,7 @@ export function CanvasNode({ data, selected, isConnectable }: NodeProps<CanvasNo
         onDragOver={ev => { if (ev.dataTransfer.types.includes('Files')) {ev.preventDefault(); ev.stopPropagation();} }}
         onDrop={ev => { const files = Array.from(ev.dataTransfer.files).filter(f => f.type.startsWith('image/')); if (files.length && !readOnly) {ev.preventDefault(); ev.stopPropagation(); void actions.uploadImages(e, files);} }}
         style={d.background ? { background: cardBackgrounds[d.background as keyof typeof cardBackgrounds] } : undefined}
-        className={`canvas-card ${p.data.heightMode !== 'fixed' && !resizing ? 'auto-height' : ''} kind-${e.kind} ${e.kind === "note" ? "note-" + (d.color || "yellow") : ""} ${selected ? "is-selected" : ""}  ${e.kind === "flow" ? "flow-" + d.shape : ""}`}
+        className={`canvas-card ${p.data.heightMode !== 'fixed' && !resizing ? 'auto-height' : ''} kind-${e.kind} ${e.kind === "note" ? "note-" + (d.color || "yellow") : ""} ${selected && singleSelected ? "is-selected" : ""}  ${e.kind === "flow" ? "flow-" + d.shape : ""}`}
       >
 
         {(["card", "space", "image", "status"].includes(e.kind)) && <>

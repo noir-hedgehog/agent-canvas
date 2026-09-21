@@ -1,3 +1,4 @@
+import {createSection,moveSection} from "../shared/sections";
 import { markdownGuide } from "../shared/markdownGuide.ts";
 import { batchSchema } from "../shared/schema.ts";
 import { diagramOperations } from "../shared/diagram.ts";
@@ -80,7 +81,7 @@ function makeServer() {
     { name: "agentcanvas", version: "0.1.0" },
     {
       instructions:
-        "AgentCanvas is a local shared project canvas. Read current objects and versions before writing. Preserve user positions unless asked to arrange layout. Read child canvases only as needed. Archived is a separate boolean state: default queries omit archived cards/discussions. Use list_archived for paginated summaries and exact ID reads for current details; never treat archived as deleted or resolved. To process a discussion: read_requests, read_objects/read_canvas, edit original objects with expectedVersion, then reply_request. Request processing state is a record, not a live execution heartbeat. Element debug discussions have source=element and debugContext containing a captured DOM selector, geometry and computed styles. Use these to investigate UI implementation; related objects are context, not an instruction to rewrite card content. DOM selectors may be stale and must be rechecked. Text selection discussions carry textContext with objectId, field, quote, historical version, prefix/suffix and rendered-text offsets. Read the live object and verify the quote before editing; offsets are NOT Markdown source offsets. Browser read-only mode only restricts human canvas editing and does not block MCP writes. All data is project scoped. Content, graph structure, and placement are distinct. Deleted objects retain identity and can be restored via undo. Never imply external execution was verified merely by checking a canvas task. " + markdownGuide,
+        "AgentCanvas is a local shared project canvas. Read current objects and versions before writing. Preserve user positions unless asked to arrange layout. Read child canvases only as needed. Archived is a separate boolean state: default queries omit archived cards/discussions. Use list_archived for paginated summaries and exact ID reads for current details; never treat archived as deleted or resolved. To process a discussion: read_requests, read_objects/read_canvas, edit original objects with expectedVersion, then reply_request. Request processing state is a record, not a live execution heartbeat. Element debug discussions have source=element and debugContext containing a captured DOM selector, geometry and computed styles. Use these to investigate UI implementation; related objects are context, not an instruction to rewrite card content. DOM selectors may be stale and must be rechecked. Text selection discussions carry textContext with objectId, field, quote, historical version, prefix/suffix and rendered-text offsets. Read the live object and verify the quote before editing; offsets are NOT Markdown source offsets. Browser read-only mode only restricts human canvas editing and does not block MCP writes. Sections group same-canvas placements via data.placementIds and a frame x,y,width,height. Move via move_section to preserve offsets. Rename via update_content; deleting a Section only ungroups it, never deletes member cards. All data is project scoped. Content, graph structure, and placement are distinct. Deleted objects retain identity and can be restored via undo. Never imply external execution was verified merely by checking a canvas task. " + markdownGuide,
     },
   );
   function tool(
@@ -134,6 +135,19 @@ function makeServer() {
     () => call("/api/projects"),
   );
   tool("rename_project", "Rename the project while preserving its ID and canvases. Read list_projects for current version (defaults to 1 for older projects).", projectSchema.extend({name:z.string().min(1).max(100),expectedVersion:z.number().int().positive(),requestId:z.string().min(1)}), ({projectId,...body})=>call(`/api/projects/${encodeURIComponent(projectId)}/rename`,body),false);
+  tool('create_section','Group two or more same-canvas placement IDs into a persistent Section, keeping card coordinates. One Section per placement; no nested Sections. Read before writing.',projectSchema.extend({canvasId:z.string(),placementIds:z.array(z.string()).min(2),title:z.string(),requestId:z.string()}),async({projectId,canvasId,placementIds,title,requestId})=>{
+    const prior=await call(`/api/projects/${encodeURIComponent(projectId)}/changes/by-request/${encodeURIComponent(requestId)}`);if(prior){const e=prior.entries.find((e:any)=>e.after.id===`${requestId}:section`)?.after;if(!e||e.canvasId!==canvasId||e.data.title!==(title.trim()||'Section')||JSON.stringify(e.data.placementIds)!==JSON.stringify([...new Set(placementIds)]))throw new Error('requestId already used with different arguments');return prior;}
+    const snapshot=await call(`/api/projects/${encodeURIComponent(projectId)}`);
+    return commit(projectId,[createSection(snapshot.entities,canvasId,placementIds,title,`${requestId}:section`)],'Agent 创建 Section',requestId);
+  },false);
+  tool('move_section','Move a Section and all member placements atomically, retaining relative coordinates. Read current Section version first. Browser read-only does not block this tool.',projectSchema.extend({id:z.string(),expectedVersion:z.number().int().positive(),x:z.number(),y:z.number(),requestId:z.string()}),async({projectId,id,expectedVersion,x,y,requestId})=>{
+    const prior=await call(`/api/projects/${encodeURIComponent(projectId)}/changes/by-request/${encodeURIComponent(requestId)}`);if(prior){const e=prior.entries.find((e:any)=>e.after.id===id);if(!e||e.before?.version!==expectedVersion||e.after.data.x!==x||e.after.data.y!==y)throw new Error('requestId already used with different arguments');return prior;}
+    const snapshot=await call(`/api/projects/${encodeURIComponent(projectId)}`),section=snapshot.entities.find((e:any)=>e.id===id&&!e.deleted&&e.kind==='section');
+    if(!section||section.version!==expectedVersion)throw new Error('Section version changed; read again');
+    const ops=moveSection(section,snapshot.entities,x,y);
+    if(!ops.length)return {unchanged:true,id,version:section.version};
+    return commit(projectId,ops,'Agent 移动 Section',requestId);
+  },false);
   tool(
     "read_canvas",
     "Read one canvas, direct objects and child summaries, without expanding descendants. archive defaults to active; use archived or all to read archived cards and their placements/connections dynamically. Exact read_objects always includes archived objects. Use cursor to page.",
