@@ -1638,11 +1638,8 @@ function EditorSurface(props: CanvasEditorProps) {
               edgeTypes={edgeTypes}
               onNodesChange={nodesChanged}
               onNodeDragStart={startDrag}
-              onNodeDrag={(event,node)=>setArchiveHover(node.type!=='section'&&overArchiveBin(event))}
+              onNodeDrag={(event,_node,dragged)=>setArchiveHover(!dragged.some(n=>n.type==='section')&&overArchiveBin(event))}
               onNodeDragStop={(event,_node,dragged)=>void finishDrag(event,dragged)}
-              onSelectionDragStart={startDrag}
-              onSelectionDrag={(event,dragged)=>setArchiveHover(!dragged.some(n=>n.type==='section')&&overArchiveBin(event.nativeEvent))}
-              onSelectionDragStop={(event,dragged)=>void finishDrag(event.nativeEvent,dragged)}
               onMove={(_event, v) => setZoom(Math.round(v.zoom * 100))}
               onMoveEnd={remember}
               onConnect={(connection) => {

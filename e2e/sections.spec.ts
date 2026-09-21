@@ -42,3 +42,16 @@ test('sections remain grouped in automatic layout, read-only and grouped member 
  await page.mouse.move(heading.x+10,heading.y+15);await page.mouse.down();await page.mouse.move(heading.x+110,heading.y+115,{steps:10});await page.mouse.up();
  expect((await saved(page)).entities).toEqual(after.entities);
 });
+
+test('dragging the multi-selection rectangle saves exactly one movement batch',async({page})=>{
+ await ready(page);
+ const a=(await card(page,'basics').boundingBox())!,b=(await card(page,'relations').boundingBox())!;
+ await page.mouse.move(a.x-10,a.y-10);await page.mouse.down();await page.mouse.move(b.x+b.width+10,Math.max(a.y+a.height,b.y+b.height)+10,{steps:16});await page.mouse.up();
+ const selection=page.locator('.react-flow__nodesselection-rect');await expect(selection).toBeVisible();
+ const box=(await selection.boundingBox())!;
+ await page.mouse.move(box.x+box.width/2,box.y+box.height-5);await page.mouse.down();await page.mouse.move(box.x+box.width/2+40,box.y+box.height+65,{steps:12});await page.mouse.up();
+ await expect.poll(async()=>page.evaluate(()=>JSON.parse(localStorage.getItem('ac-demo-workspace-v1')||'null')?.snapshots[0].changes.length)).toBe(1);
+ const snapshot=await saved(page);expect(snapshot.changes[0].entries).toHaveLength(2);
+ await page.getByRole('button',{name:'撤销',exact:true}).click();
+ await expect.poll(async()=>{const s=await saved(page);return s.entities.find((e:any)=>e.id==='showcase-basics-place').data.x;}).toBe(510);
+});
