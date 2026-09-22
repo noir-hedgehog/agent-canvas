@@ -18,6 +18,8 @@
 | 历史 / 归档 | read_changes、undo_change、list_archived、set_archived | 撤销检测后续写入冲突；archive=active/archived/all；按 ID 可读归档对象 |
 | 文件与图片 | reference_file、read_file_reference、import_image、read_image | reference_file 支持范围内路径/直链；read_image 返回实际图片，别只根据文件名判断 |
 
+`apply_changes` 创建原生 edge 时显式传入 `{sourceSide:"auto",targetSide:"auto"}`，或固定如 `{sourceSide:"bottom",targetSide:"top"}`。省略两字段沿用旧版几何，便于导入旧数据。端点更新遵守 expectedVersion，可撤销；不改变 placement 坐标。
+
 `create_content` 的 requestId 为 `run:step` 时，当前创建内容 ID 为 `run:step:content`，placement 为 `run:step:placement`。`create_section` 的 Section ID 为 `requestId:section`。工具返回值仍需核对，不能把示例 ID 当成用户现有对象。
 
 `update_content` 提交 `{projectId,id,expectedVersion,patch,summary,requestId}`。修改正文只传 body 等相关字段。归档/处理状态优先用专门工具；高级 `apply_changes` 同一事务内每个 ID 只能出现一次（最多 300 个操作）。
@@ -28,7 +30,7 @@ Section 移动工具会一起更新成员 placement 并校验版本。自动布�
 
 ## 能力边界
 
-- 原生端点只有左右两个；MCP 不能通过未定义的 `sourceHandle` / `targetHandle` 获得上下端点。语义方向可反转，端口几何仍受限制。
+- 四边端点通过 `sourceSide` / `targetSide` 设置，取值为 `auto|top|right|bottom|left`；不用内部 React Flow 的 sourceHandle/targetHandle 名称。`create_relation` 默认两端 auto；`update_content` 修改旧 relation/edge 的端点，mind 父子线修改子 mind 对象。只有一端指定时，另一端可为 auto；旧对象两字段均缺失时保持旧左右规则。箭头反转须同时交换对象 ID 和 sourceSide/targetSide。
 - 网页有自动布局预览。当前 MCP 没有 `auto_layout` 工具；需要布局时，在授权范围内计算坐标，用版本化 placement 更新，Section 用 `move_section`。不要声称调用了自动布局算法。
 - 泳道是 Section + 卡片的组合示例，没有 lane 专用实体、原生对齐泳道标题或泳道约束引擎。
 - Mermaid 图在卡片正文中渲染，图内节点不是独立画布对象；需要分别批注、子画布或持续编辑时用原生图。

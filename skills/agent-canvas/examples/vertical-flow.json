@@ -1,6 +1,6 @@
 {
-  "id": "flowchart",
-  "description": "Editable left-to-right flow with automatic four-side ports and a review loop; no obstacle routing.",
+  "id": "vertical-flow",
+  "description": "Editable top-to-bottom flow with bottom-to-top ports and a fixed left-side review loop.",
   "calls": [
     {
       "tool": "apply_changes",
@@ -34,8 +34,8 @@
           "graphId": "${RUN}:graph",
           "shape": "terminal"
         },
-        "x": 80,
-        "y": 140,
+        "x": 180,
+        "y": 100,
         "width": 260,
         "height": 150,
         "requestId": "${RUN}:start"
@@ -53,8 +53,8 @@
           "graphId": "${RUN}:graph",
           "shape": "process"
         },
-        "x": 430,
-        "y": 140,
+        "x": 180,
+        "y": 360,
         "width": 260,
         "height": 150,
         "requestId": "${RUN}:work"
@@ -72,8 +72,8 @@
           "graphId": "${RUN}:graph",
           "shape": "decision"
         },
-        "x": 780,
-        "y": 140,
+        "x": 180,
+        "y": 620,
         "width": 260,
         "height": 150,
         "requestId": "${RUN}:review"
@@ -91,8 +91,8 @@
           "graphId": "${RUN}:graph",
           "shape": "terminal"
         },
-        "x": 1130,
-        "y": 140,
+        "x": 180,
+        "y": 880,
         "width": 260,
         "height": 150,
         "requestId": "${RUN}:end"
@@ -115,8 +115,8 @@
               "source": "${RUN}:start:content",
               "target": "${RUN}:work:content",
               "label": "",
-              "sourceSide": "auto",
-              "targetSide": "auto"
+              "sourceSide": "bottom",
+              "targetSide": "top"
             }
           },
           {
@@ -129,8 +129,8 @@
               "source": "${RUN}:work:content",
               "target": "${RUN}:review:content",
               "label": "Submit",
-              "sourceSide": "auto",
-              "targetSide": "auto"
+              "sourceSide": "bottom",
+              "targetSide": "top"
             }
           },
           {
@@ -143,8 +143,8 @@
               "source": "${RUN}:review:content",
               "target": "${RUN}:end:content",
               "label": "Yes",
-              "sourceSide": "auto",
-              "targetSide": "auto"
+              "sourceSide": "bottom",
+              "targetSide": "top"
             }
           },
           {
@@ -157,8 +157,8 @@
               "source": "${RUN}:review:content",
               "target": "${RUN}:work:content",
               "label": "No: revise",
-              "sourceSide": "auto",
-              "targetSide": "auto"
+              "sourceSide": "left",
+              "targetSide": "left"
             }
           }
         ]

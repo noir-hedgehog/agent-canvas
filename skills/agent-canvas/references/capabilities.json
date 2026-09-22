@@ -47,19 +47,23 @@
   "examples": [
     "flowchart.json",
     "swimlane.json",
-    "mind-map.json"
+    "mind-map.json",
+    "vertical-flow.json"
   ],
   "limits": {
     "nativeConnectionPorts": [
-      "left:in",
-      "right:out"
+      "top",
+      "right",
+      "bottom",
+      "left"
     ],
-    "topBottomPorts": false,
+    "topBottomPorts": true,
     "automaticObstacleRouting": false,
     "nestedSections": false,
     "nativeSwimlanes": false,
     "automaticLayoutMcpTool": false,
     "browserReadOnlyBlocksMcp": false,
-    "mcpCreateProject": false
+    "mcpCreateProject": false,
+    "automaticPortSelection": true
   }
 }

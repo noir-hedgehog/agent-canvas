@@ -1,3 +1,4 @@
+import {resolvePorts, handleSides, type PortSide} from "../shared/connectionPorts";
 import {DEMO_MODE,assetUrl} from "./runtime";
 import {
   useCallback,
@@ -16,6 +17,7 @@ import {
   BackgroundVariant,
   applyNodeChanges,
   SelectionMode,
+  ConnectionMode,
   MarkerType,
   useReactFlow,
   type Edge,
@@ -534,6 +536,12 @@ function EditorSurface(props: CanvasEditorProps) {
       );
     }
   }, [snapshot, canvasId, props.objectId]);
+  function portRect(p:Entity){
+    const n=nodes.find(n=>n.id===p.id);
+    const parent=n?.parentId?nodes.find(x=>x.id===n.parentId):undefined;
+    const position=layoutPlan?.positions[p.id]||(n?{x:n.position.x+(parent?.position.x||0),y:n.position.y+(parent?.position.y||0)}:p.data);
+    return {x:position.x,y:position.y,width:n?.measured?.width||p.data.width,height:n?.measured?.height||p.data.height};
+  }
   const edges: Edge[] = useMemo(
     () =>
       live.flatMap<Edge>((e) => {
@@ -541,9 +549,10 @@ function EditorSurface(props: CanvasEditorProps) {
         if (e.kind === "relation") {
           const a = byId.get(e.data.sourcePlacementId), b = byId.get(e.data.targetPlacementId);
           if (!a || !b) return [];
-          const reverse = (layoutPlan?.positions[a.id]?.x ?? a.data.x) > (layoutPlan?.positions[b.id]?.x ?? b.data.x);
-          return [{ id: e.id, source: reverse ? b.id : a.id, target: reverse ? a.id : b.id, sourceHandle: "out", targetHandle: "in",
-            type: "relation", data: { entity: e, reverse, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
+          const ports = resolvePorts(e.data,portRect(a),portRect(b),true);
+          const {reverse}=ports;
+          return [{ id: e.id, source: reverse ? b.id : a.id, target: reverse ? a.id : b.id, sourceHandle: ports.sourceHandle, targetHandle: ports.targetHandle,
+            type: "relation", data: { entity: e, reverse, ports, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
             hidden: [a, b].some(p => { const object = byId.get(p.data.objectId); return object?.kind === "mind" && hiddenMind(object); }),
             style: { stroke: "#9483b0", strokeWidth: 1.8, strokeDasharray: "5 4" },
             labelStyle: { fill: "#746387", fontSize: 12 }, labelBgStyle: { fill: "#faf7ff" } }];
@@ -560,15 +569,16 @@ function EditorSurface(props: CanvasEditorProps) {
         const source = places.find((p) => p.data.objectId === sourceId),
           target = places.find((p) => p.data.objectId === targetId);
         if (!source || !target) return [];
+        const ports=resolvePorts(e.data,portRect(source),portRect(target));
         return [
           {
             id: e.kind === "mind" ? "mind-edge-" + e.id : e.id,
             source: source.id,
             target: target.id,
-            sourceHandle: "out",
-            targetHandle: "in",
-            type: e.kind === "edge" ? "relation" : "smoothstep",
-            data: e.kind === "edge" ? { entity: e, reverse: false, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) } : undefined,
+            sourceHandle: ports.sourceHandle,
+            targetHandle: ports.targetHandle,
+            type: "relation",
+            data: { entity: e, reverse: false, ports, active: activeLine === e.id, editable: !readOnly, onSelect: () => { setActiveLine(e.id); store.setState({selected: []}); }, onClose: () => setActiveLine(null) },
             label: e.kind === "edge" ? e.data.label : undefined,
             hidden: e.kind === "mind" && hiddenMind(e),
             style: {
@@ -584,7 +594,7 @@ function EditorSurface(props: CanvasEditorProps) {
           },
         ];
       }),
-    [snapshot, canvasId, revealedBranches, activeLine, mode, readOnly, layoutPlan],
+    [snapshot, canvasId, revealedBranches, activeLine, mode, readOnly, layoutPlan, nodes],
   );
   async function groupSelection(){
     if(readOnly)return;
@@ -776,7 +786,7 @@ function EditorSurface(props: CanvasEditorProps) {
             title: kind === "mind" ? "新的想法" : "新的步骤",
             body: "",
             graphId,
-            ...(kind === "mind" ? { parentId: null } : { shape: "process" }),
+            ...(kind === "mind" ? { parentId: null, sourceSide:"auto", targetSide:"auto" } : { shape: "process" }),
           },
           id,
         ),
@@ -827,11 +837,11 @@ function EditorSurface(props: CanvasEditorProps) {
     );
     if (result) store.setState({ selected: [placement.id] });
   }
-  function editRelation(source: Entity, target?: Entity, relation?: Entity) {
+  function editRelation(source: Entity, target?: Entity, relation?: Entity, ports: {sourceSide:PortSide;targetSide:PortSide} = {sourceSide:"auto",targetSide:"auto"}) {
     if(store.getState().readOnly)return;
     if (relation) { setActiveLine(relation.id); store.setState({selected: []}); return; }
     const create = async (targetPlacementId: string) => {
-      const op = createOp("relation", canvasId, {sourcePlacementId: source.id, targetPlacementId, label: "", direction: "none", lineStyle: "association"});
+      const op = createOp("relation", canvasId, {sourcePlacementId: source.id, targetPlacementId, label: "", direction: "none", lineStyle: "association", ...ports});
       const result = await s.run([op], "关联卡片");
       if (result) { setActiveLine(op.id); store.setState({selected: []}); }
       return !!result;
@@ -970,7 +980,7 @@ function EditorSurface(props: CanvasEditorProps) {
             title: e.kind === "mind" ? "新的想法" : "下一步",
             body: "",
             graphId: e.data.graphId,
-            ...(e.kind === "mind" ? { parentId } : { shape: "process" }),
+            ...(e.kind === "mind" ? { parentId, sourceSide:"auto", targetSide:"auto" } : { shape: "process" }),
           },
           id,
         ),
@@ -982,6 +992,7 @@ function EditorSurface(props: CanvasEditorProps) {
             graphId: e.data.graphId,
             source: e.id,
             target: id,
+            sourceSide:"auto", targetSide:"auto",
             label: "",
           }),
         );
@@ -1642,6 +1653,7 @@ function EditorSurface(props: CanvasEditorProps) {
               onNodeDragStop={(event,_node,dragged)=>void finishDrag(event,dragged)}
               onMove={(_event, v) => setZoom(Math.round(v.zoom * 100))}
               onMoveEnd={remember}
+              connectionMode={ConnectionMode.Loose}
               onConnect={(connection) => {
                 const a = nodes.find((n) => n.id === connection.source)?.data
                     .entity,
@@ -1650,7 +1662,7 @@ function EditorSurface(props: CanvasEditorProps) {
                 if (!a || !b || !connection.source || !connection.target) return;
                 if (connection.source === connection.target) { flash("请选择另一张卡片"); return; }
                 if (a.kind !== "flow" || b.kind !== "flow" || a.data.graphId !== b.data.graphId) {
-                  editRelation(byId.get(connection.source)!, byId.get(connection.target)!);
+                  editRelation(byId.get(connection.source)!, byId.get(connection.target)!, undefined, {sourceSide:handleSides[connection.sourceHandle!]||"auto",targetSide:handleSides[connection.targetHandle!]||"auto"});
                   return;
                 }
                 void s.run(
@@ -1659,6 +1671,7 @@ function EditorSurface(props: CanvasEditorProps) {
                       graphId: a.data.graphId,
                       source: a.id,
                       target: b.id,
+                      sourceSide:handleSides[connection.sourceHandle!]||"auto", targetSide:handleSides[connection.targetHandle!]||"auto",
                       label: "",
                     }),
                   ],
@@ -1666,7 +1679,8 @@ function EditorSurface(props: CanvasEditorProps) {
                 );
               }}
               onEdgeClick={(_ev, edge) => {
-                if (!readOnly && byId.has(edge.id)) { setActiveLine(edge.id); store.setState({selected: []}); }
+                const id=(edge.data?.entity as Entity|undefined)?.id||edge.id;
+                if (!readOnly && byId.has(id)) { setActiveLine(id); store.setState({selected: []}); }
               }}
               onPaneClick={() => setActiveLine(null)}
               onNodeClick={()=>{setActiveLine(null);if(mode==="comment")store.setState({panel:"comments"});}}

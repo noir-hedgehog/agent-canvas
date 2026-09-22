@@ -1,3 +1,4 @@
+import {validateConnectionPorts} from "../shared/connectionPorts";
 import {validateSections} from "../shared/sections";
 import { batchSchema } from "../shared/schema.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -296,7 +297,7 @@ export class Store {
         fail(`无效的${kind || "对象"}引用：${String(id)}`);
       return e!;
     };
-    try { validateSections([...map.values()]); } catch(error) { fail((error as Error).message); }
+    try { validateSections([...map.values()]); validateConnectionPorts([...map.values()]); } catch(error) { fail((error as Error).message); }
     for (const e of active) {
       const d = e.data;
       if (e.kind !== "canvas" && e.kind !== "asset" && !e.canvasId)

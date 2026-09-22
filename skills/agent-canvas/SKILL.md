@@ -20,8 +20,8 @@ description: Use AgentCanvas MCP to organize persistent project cards, Sections,
 - 一个卡片承载一个可讨论的主题；标题简洁，正文存真实换行的 Markdown，不把整篇正文包进代码块。支持 GFM 表格、任务列表、链接和 Mermaid；Markdown 复选框仅展示，交互任务使用 `tasks` 卡片。
 - 修改原对象，保留 ID、批注、来源引用和已有布局。只有用户要求新建或重新整理的范围才安排位置；先读本层，避免覆盖现有内容。
 - 内容通过 `update_content` 修改；普通位置通过 `set_layout` 或事务修改 placement。关系引用同层 placement ID；箭头、包含、普通关联用不同 `lineStyle`，标签可以为空。
-- **当前原生连线只有左侧 `in`、右侧 `out` 两个端点。** 没有上下端点、端点选择参数或自动避障。新流程优先从左向右排；遇到密集回路可改用 Mermaid 或拆子画布。不要为了绕过端点限制擅自重排用户的既有图。
-- 思维导图父子关系禁止环，流程图可有回路。包含关系线是语义关系，不自动产生子画布或 Section 成员关系。
+- **原生连线支持上、右、下、左四边端点。** `sourceSide` / `targetSide` 为 `auto|top|right|bottom|left`，与箭头方向独立。新建关系默认 auto；横向主线用 right→left，竖向流程用 bottom→top，回路可固定侧边。自动选边不等于自动避障。旧线未存这两个字段时保留原有左右连接；按用户要求修改端点时不移动卡片。反转关系必须同时交换对象端点与两侧设置。
+- 思维导图父子关系禁止环，流程图可有回路。思维导图父子线的端点设置存于子 mind 对象，sourceSide 指父节点一侧；流程边与普通关联分别存于 edge / relation。包含关系线是语义关系，不自动产生子画布或 Section 成员关系。
 - Section 是同层卡片展示的分组，不是子画布或原生泳道。`create_section` 使用至少两个 placement ID；每个 placement 只能属于一个 Section，暂不嵌套。
 - 移动 Section 使用 `move_section`，保持内部相对位置；不要只改 Section 的 x/y 或逐个散移成员。改名用 `update_content`；解除用 `apply_changes` 删除 Section 对象，**不删除成员**。网页中需要单独调整成员位置或尺寸时先解除分组。
 - 图片是卡片内容，上传后引用资产 ID。文件链接可放 Markdown 正文或 `fileReferenceIds`；本地相对路径从服务工作区解析。原文件引用不会复制，托管图片上传会复制；勿把本机路径写进公开范例。

@@ -133,6 +133,22 @@ test("real STDIO MCP + local HTTP: discover, read, edit, nested canvas, reply, i
     assert.ok(rejectedConversion.isError);
     await invoke("create_relation",{projectId:p.id,canvasId:c,sourcePlacementId:"blank-create:placement",targetPlacementId:service.store.all(p.id).find(e => e.kind === "placement" && e.data.objectId === "node")!.id,lineStyle:"containment",label:"包括",requestId:"typed-relation"});
     assert.equal(service.store.get(p.id,"typed-relation:relation").data.lineStyle,"containment");
+    const portsBefore=service.store.all(p.id).filter(e=>e.kind==='placement');
+    assert.equal(service.store.get(p.id,'typed-relation:relation').data.sourceSide,'auto');
+    await invoke('update_content',{projectId:p.id,id:'typed-relation:relation',expectedVersion:1,patch:{sourceSide:'bottom',targetSide:'top'},summary:'固定上下端点',requestId:'vertical-ports'});
+    const portRead=await invoke('read_objects',{projectId:p.id,ids:['typed-relation:relation']});
+    assert.ok(JSON.stringify(portRead).includes('bottom'));
+    assert.deepEqual(service.store.all(p.id).filter(e=>e.kind==='placement'),portsBefore);
+    const stalePorts:any=await client.callTool({name:'update_content',arguments:{projectId:p.id,id:'typed-relation:relation',expectedVersion:1,patch:{sourceSide:'left'},summary:'过期端点',requestId:'stale-ports'}});
+    assert.ok(stalePorts.isError);
+    const badPorts:any=await client.callTool({name:'apply_changes',arguments:{projectId:p.id,requestId:'bad-ports',summary:'非法端点事务',operations:[{op:'update',id:'typed-relation:relation',expectedVersion:2,patch:{sourceSide:'diagonal'}},{op:'update',id:portsBefore[0].id,expectedVersion:portsBefore[0].version,patch:{x:999}}]}});
+    assert.ok(badPorts.isError);
+    assert.equal(service.store.get(p.id,'typed-relation:relation').data.sourceSide,'bottom');
+    assert.deepEqual(service.store.all(p.id).filter(e=>e.kind==='placement'),portsBefore);
+    const fixedArgs={projectId:p.id,canvasId:c,sourcePlacementId:'blank-create:placement',targetPlacementId:portsBefore.find(e=>e.data.objectId==='node')!.id,sourceSide:'top',targetSide:'bottom',requestId:'fixed-relation'};
+    const fixed=await invoke('create_relation',fixedArgs);assert.equal((await invoke('create_relation',fixedArgs)).id,fixed.id);
+    assert.equal(service.store.get(p.id,'fixed-relation:relation').data.targetSide,'bottom');
+
 
     assert.equal((await invoke("list_projects", {}))[0].id, p.id);
     const canvas = await invoke("read_canvas", {

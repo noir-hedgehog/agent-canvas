@@ -44,12 +44,13 @@ test('bundled Skill covers discovered MCP tools and its diagram examples execute
         await invoke(call.tool,args);
       }
       const all=service.store.all(project.id).filter(e=>!e.deleted);
-      if(example.id==='flowchart'){
+      if(example.id==='flowchart'||example.id==='vertical-flow'){
         const nodes=all.filter(e=>e.kind==='flow');
         assert.equal(nodes.length,4);
         assert.equal(new Set(nodes.map(e=>e.data.graphId)).size,1);
         const edges=all.filter(e=>e.kind==='edge');
         assert.equal(edges.length,4);
+        if(example.id==='vertical-flow'){assert.equal(edges.filter(e=>e.data.sourceSide==='bottom'&&e.data.targetSide==='top').length,3);assert.equal(edges.filter(e=>e.data.sourceSide==='left'&&e.data.targetSide==='left').length,1);}
         assert.ok(edges.some(e=>e.data.source===`${run}:review:content`&&e.data.target===`${run}:work:content`));
       }else if(example.id==='swimlane'){
         const sections=all.filter(e=>e.kind==='section');

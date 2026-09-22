@@ -251,22 +251,7 @@ export function CanvasNode({ data, selected, isConnectable, parentId }: NodeProp
         <button onClick={() => actions.replaceImage(e)}><ImagePlus size={14}/>添加图片</button>
         <button title="引用文件" aria-label="引用文件" onClick={() => actions.referenceFile(e)}><Link2 size={14}/></button>
       </NodeToolbar>
-      {(
-        <>
-          <Handle
-            id="in"
-            type="target"
-            position={Position.Left}
-            isConnectable={isConnectable}
-          />
-          <Handle
-            id="out"
-            type="source"
-            position={Position.Right}
-            isConnectable={isConnectable}
-          />
-        </>
-      )}
+      {([['in', Position.Left, '左'], ['out', Position.Right, '右'], ['top', Position.Top, '上'], ['bottom', Position.Bottom, '下']] as const).map(([id,position,label])=><Handle key={id} id={id} type="source" position={position} aria-label={`${label}连接端点`} isConnectable={isConnectable} />)}
       <div
         onDragOver={ev => { if (ev.dataTransfer.types.includes('Files')) {ev.preventDefault(); ev.stopPropagation();} }}
         onDrop={ev => { const files = Array.from(ev.dataTransfer.files).filter(f => f.type.startsWith('image/')); if (files.length && !readOnly) {ev.preventDefault(); ev.stopPropagation(); void actions.uploadImages(e, files);} }}

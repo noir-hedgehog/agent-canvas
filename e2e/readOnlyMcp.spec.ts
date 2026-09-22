@@ -39,6 +39,13 @@ test('real MCP updates remain live over SSE while browser is read-only; versione
   await page.screenshot({path:'test-results/readonly-live-mcp.png',fullPage:true});
   await invoke('create_content',{projectId:project.id,canvasId:canvas,kind:'card',data:{title:'Second card',body:'Section member'},x:430,y:100,requestId:'second-card'});
   const places=app.store.all(project.id).filter(e=>e.kind==='placement').map(e=>e.id);
+  await invoke('create_relation',{projectId:project.id,canvasId:canvas,sourcePlacementId:places[0],targetPlacementId:places[1],lineStyle:'arrow',requestId:'readonly-port-line'});
+  const line=page.locator('.react-flow__edge[data-id="readonly-port-line:relation"] .react-flow__edge-path');await expect(line).toHaveAttribute('d',/^M/);
+  const oldPath=await line.getAttribute('d');
+  await invoke('update_content',{projectId:project.id,id:'readonly-port-line:relation',expectedVersion:1,patch:{sourceSide:'bottom',targetSide:'top'},summary:'只读页面同步端点',requestId:'readonly-port-update'});
+  await expect(line).not.toHaveAttribute('d',oldPath!);
+  await expect(page.getByRole('button',{name:'只读模式',exact:true})).toHaveAttribute('aria-pressed','true');
+
   const args={projectId:project.id,canvasId:canvas,placementIds:places,title:'MCP Section',requestId:'mcp-section'};
   const group=await invoke('create_section',args);expect((await invoke('create_section',args)).id).toBe(group.id);
   await expect(page.locator('.canvas-section')).toHaveCount(1);

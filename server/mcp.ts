@@ -1,3 +1,4 @@
+import {portSides} from "../shared/connectionPorts";
 import {readUsageGuide,usageGuideTopics} from "../shared/usageGuide";
 import {createSection,moveSection} from "../shared/sections";
 import { markdownGuide } from "../shared/markdownGuide.ts";
@@ -82,7 +83,7 @@ function makeServer() {
     { name: "agentcanvas", version: "0.1.0" },
     {
       instructions:
-        "AgentCanvas is a local shared project canvas. Call read_usage_guide for current usage rules, capability limits and runnable flowchart/swimlane/mind-map examples maintained in the agent-canvas skill. Native card connections currently have only left in/right out ports, not top/bottom ports or automatic obstacle routing. Read current objects and versions before writing. Preserve user positions unless asked to arrange layout. Read child canvases only as needed. Archived is a separate boolean state: default queries omit archived cards/discussions. Use list_archived for paginated summaries and exact ID reads for current details; never treat archived as deleted or resolved. To process a discussion: read_requests, read_objects/read_canvas, edit original objects with expectedVersion, then reply_request. Request processing state is a record, not a live execution heartbeat. Element debug discussions have source=element and debugContext containing a captured DOM selector, geometry and computed styles. Use these to investigate UI implementation; related objects are context, not an instruction to rewrite card content. DOM selectors may be stale and must be rechecked. Text selection discussions carry textContext with objectId, field, quote, historical version, prefix/suffix and rendered-text offsets. Read the live object and verify the quote before editing; offsets are NOT Markdown source offsets. Browser read-only mode only restricts human canvas editing and does not block MCP writes. Sections group same-canvas placements via data.placementIds and a frame x,y,width,height. Move via move_section to preserve offsets. Rename via update_content; deleting a Section only ungroups it, never deletes member cards. All data is project scoped. Content, graph structure, and placement are distinct. Deleted objects retain identity and can be restored via undo. Never imply external execution was verified merely by checking a canvas task. " + markdownGuide,
+        "AgentCanvas is a local shared project canvas. Call read_usage_guide for current usage rules, capability limits and runnable flowchart/swimlane/mind-map examples maintained in the agent-canvas skill. Native connections support top/right/bottom/left ports. sourceSide and targetSide accept auto or a fixed side; omitted fields on existing edges retain legacy geometry. New create_relation defaults to auto. Use update_content with expectedVersion to change ports without moving cards; mind branch ports live on the child mind object. Reversing semantic endpoints must also swap sourceSide/targetSide. Automatic port choice is not obstacle routing. Read current objects and versions before writing. Preserve user positions unless asked to arrange layout. Read child canvases only as needed. Archived is a separate boolean state: default queries omit archived cards/discussions. Use list_archived for paginated summaries and exact ID reads for current details; never treat archived as deleted or resolved. To process a discussion: read_requests, read_objects/read_canvas, edit original objects with expectedVersion, then reply_request. Request processing state is a record, not a live execution heartbeat. Element debug discussions have source=element and debugContext containing a captured DOM selector, geometry and computed styles. Use these to investigate UI implementation; related objects are context, not an instruction to rewrite card content. DOM selectors may be stale and must be rechecked. Text selection discussions carry textContext with objectId, field, quote, historical version, prefix/suffix and rendered-text offsets. Read the live object and verify the quote before editing; offsets are NOT Markdown source offsets. Browser read-only mode only restricts human canvas editing and does not block MCP writes. Sections group same-canvas placements via data.placementIds and a frame x,y,width,height. Move via move_section to preserve offsets. Rename via update_content; deleting a Section only ungroups it, never deletes member cards. All data is project scoped. Content, graph structure, and placement are distinct. Deleted objects retain identity and can be restored via undo. Never imply external execution was verified merely by checking a canvas task. " + markdownGuide,
     },
   );
   function tool(
@@ -252,11 +253,11 @@ function makeServer() {
   );
   tool(
     "create_relation",
-    "Relate two existing card placements on the same canvas. Relations do not change hierarchy, ownership or layout. sourcePlacementId and targetPlacementId are placement IDs, including local task-reference instances. direction none is undirected; forward adds an arrow. Edit label/direction with update_content, remove with apply_changes.",
+    "Relate two existing card placements on the same canvas. Relations do not change hierarchy, ownership or layout. sourcePlacementId and targetPlacementId are placement IDs, including local task-reference instances. direction none is undirected; forward adds an arrow. Edit label/direction/sourceSide/targetSide with update_content, remove with apply_changes. Each side is auto or top/right/bottom/left; defaults auto. Ports are independent of arrow direction.",
     projectSchema.extend({ canvasId: z.string(), sourcePlacementId: z.string(), targetPlacementId: z.string(),
-      label: z.string().max(200).default(""), direction: z.enum(["none", "forward"]).default("none"), lineStyle: z.enum(["association", "arrow", "containment"]).optional(), requestId: z.string() }),
-    ({ projectId, canvasId, sourcePlacementId, targetPlacementId, label, direction, lineStyle, requestId }) => commit(projectId,
-      [createOp("relation", canvasId, { sourcePlacementId, targetPlacementId, label, direction: lineStyle ? (lineStyle === "association" ? "none" : "forward") : direction, ...(lineStyle ? {lineStyle} : {}) }, `${requestId}:relation`)], "Agent 关联卡片", requestId),
+      label: z.string().max(200).default(""), direction: z.enum(["none", "forward"]).default("none"), lineStyle: z.enum(["association", "arrow", "containment"]).optional(), sourceSide:z.enum(portSides).default("auto"), targetSide:z.enum(portSides).default("auto"), requestId: z.string() }),
+    ({ projectId, canvasId, sourcePlacementId, targetPlacementId, label, direction, lineStyle, sourceSide, targetSide, requestId }) => commit(projectId,
+      [createOp("relation", canvasId, { sourcePlacementId, targetPlacementId, label, sourceSide, targetSide, direction: lineStyle ? (lineStyle === "association" ? "none" : "forward") : direction, ...(lineStyle ? {lineStyle} : {}) }, `${requestId}:relation`)], "Agent 关联卡片", requestId),
     false,
   );
   tool(
@@ -306,7 +307,7 @@ function makeServer() {
             ),
           );
         }
-        if (kind === "mind") data = { parentId: null, ...data };
+        if (kind === "mind") data = { parentId: null, sourceSide:"auto", targetSide:"auto", ...data };
         else data = { shape: "process", ...data };
       }
       data = {
@@ -340,7 +341,7 @@ function makeServer() {
   );
   tool(
     "update_content",
-    "Patch content data of an existing object using its current expectedVersion. Does not modify placements. Also supports request state updates. Read before editing. " + markdownGuide,
+    "Patch content data of an existing object using its current expectedVersion. Does not modify placements. Also supports request state updates and sourceSide/targetSide (auto/top/right/bottom/left) on relation, edge, or child mind objects. Reversing a relation swaps both semantic IDs and side settings. Read before editing. " + markdownGuide,
     projectSchema.extend({
       id: z.string(),
       expectedVersion: z.number().int(),

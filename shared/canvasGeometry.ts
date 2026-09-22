@@ -7,8 +7,10 @@ export function pointerInRectangle(event: {clientX?:number;clientY?:number;chang
 }
 export function nodeHandles(width: number, height: number) {
   return [
-    {id:'in',type:'target' as const,position:Position.Left,x:-4,y:height/2-4,width:8,height:8},
+    {id:'in',type:'source' as const,position:Position.Left,x:-4,y:height/2-4,width:8,height:8},
     {id:'out',type:'source' as const,position:Position.Right,x:width-4,y:height/2-4,width:8,height:8},
+    {id:'top',type:'source' as const,position:Position.Top,x:width/2-4,y:-4,width:8,height:8},
+    {id:'bottom',type:'source' as const,position:Position.Bottom,x:width/2-4,y:height-4,width:8,height:8},
   ];
 }
 export function gridOperations(placements: Entity[], selected: string[], grid = 24) {

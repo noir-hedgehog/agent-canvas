@@ -72,7 +72,7 @@ Windows：双击 `start.cmd`，或在解压目录的终端运行它。
 
 Skill 包含画布使用规范、Section 操作、批注处理，以及可执行的流程图、泳道分区和思维导图范例。其他 MCP 客户端也可调用 `read_usage_guide` 获取同一份指南、能力清单和范例，无需安装 Skill。新增工具需要客户端重新发现。
 
-当前原生连线只有左侧入口、右侧出口；上下端点与自动避障尚未实现。新建原生流程图优先横向排布，已有内容保留用户布局。泳道范例通过 Section 表达职责分区，不是专门的泳道组件。Section 已支持 `create_section`、`move_section`；改名用 `update_content`，解除分组用 `apply_changes` 删除 Section 对象，保留成员卡片。
+原生连线支持上、右、下、左四边端点；从端点拖动可固定连接位置，点击连线后可分别选择起点 / 终点端点，或点击「自动」随卡片位置选边。旧线保留原有左右连接，主动切换才采用新规则，卡片坐标不变。MCP 的 `create_relation` 默认自动选边；`update_content` 支持 `sourceSide` / `targetSide`（auto/top/right/bottom/left），思维导图父子线设置存于子节点。箭头方向独立于端点，自动避障尚未实现。泳道范例通过 Section 表达职责分区，不是专门的泳道组件。Section 已支持 `create_section`、`move_section`；改名用 `update_content`，解除分组用 `apply_changes` 删除 Section 对象，保留成员卡片。
 
 开发约定见 [AGENTS.md](AGENTS.md)：功能变更同步更新 MCP、Skill 与验收。上述指南随源码和新构建的发行包提供，既有 v0.1.0 发布归档不回写。
 
