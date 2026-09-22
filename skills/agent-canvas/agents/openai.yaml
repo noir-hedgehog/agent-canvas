@@ -1,0 +1,6 @@
+interface:
+  display_name: "AgentCanvas"
+  short_description: "用 MCP 维护共创画布、Section 和图表，保留布局并处理批注"
+  default_prompt: "使用 $agent-canvas 在指定画布组织内容并处理批注，先读取最新对象，再保留布局进行修改。"
+policy:
+  allow_implicit_invocation: true

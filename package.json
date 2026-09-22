@@ -14,7 +14,8 @@
     "backup": "tsx scripts/backup.ts",
     "build:demo": "tsc --noEmit && vite build --mode demo",
     "package:local": "node scripts/package-local.mjs",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "skill:install": "node scripts/install-skill.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",

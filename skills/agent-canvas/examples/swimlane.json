@@ -1,0 +1,143 @@
+{
+  "id": "swimlane",
+  "description": "Role-based Sections approximate swimlanes; no dedicated lane engine or nested Sections.",
+  "calls": [
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "card",
+        "data": {
+          "title": "Request",
+          "body": ""
+        },
+        "x": 80,
+        "y": 120,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:request"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "card",
+        "data": {
+          "title": "Clarify",
+          "body": ""
+        },
+        "x": 430,
+        "y": 430,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:clarify"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "card",
+        "data": {
+          "title": "Accept result",
+          "body": ""
+        },
+        "x": 780,
+        "y": 120,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:accept"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "card",
+        "data": {
+          "title": "Deliver revision",
+          "body": ""
+        },
+        "x": 1130,
+        "y": 430,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:deliver"
+      }
+    },
+    {
+      "tool": "create_relation",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "sourcePlacementId": "${RUN}:request:placement",
+        "targetPlacementId": "${RUN}:clarify:placement",
+        "lineStyle": "arrow",
+        "label": "Clarify",
+        "requestId": "${RUN}:handoff-1"
+      }
+    },
+    {
+      "tool": "create_relation",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "sourcePlacementId": "${RUN}:clarify:placement",
+        "targetPlacementId": "${RUN}:accept:placement",
+        "lineStyle": "arrow",
+        "label": "Review",
+        "requestId": "${RUN}:handoff-2"
+      }
+    },
+    {
+      "tool": "create_relation",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "sourcePlacementId": "${RUN}:accept:placement",
+        "targetPlacementId": "${RUN}:deliver:placement",
+        "lineStyle": "arrow",
+        "label": "Publish",
+        "requestId": "${RUN}:handoff-3"
+      }
+    },
+    {
+      "tool": "create_section",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "placementIds": [
+          "${RUN}:request:placement",
+          "${RUN}:accept:placement"
+        ],
+        "title": "Requester",
+        "requestId": "${RUN}:lane-requester"
+      }
+    },
+    {
+      "tool": "create_section",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "placementIds": [
+          "${RUN}:clarify:placement",
+          "${RUN}:deliver:placement"
+        ],
+        "title": "Executor",
+        "requestId": "${RUN}:lane-executor"
+      }
+    },
+    {
+      "tool": "read_canvas",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}"
+      }
+    }
+  ]
+}

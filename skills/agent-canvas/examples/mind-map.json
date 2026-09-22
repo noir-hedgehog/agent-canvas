@@ -1,0 +1,25 @@
+{
+  "id": "mind-map",
+  "description": "Create a diagram card and read its starter nodes before editing.",
+  "calls": [
+    {
+      "tool": "create_diagram_card",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "diagramType": "mind",
+        "title": "Project ideas",
+        "x": 80,
+        "y": 100,
+        "requestId": "${RUN}:mind"
+      }
+    },
+    {
+      "tool": "read_canvas",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${RUN}:mind:diagram:canvas"
+      }
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "id": "flowchart",
+  "description": "Editable native left-to-right flow with a review loop. Ports are left/right only; no automatic obstacle routing.",
+  "calls": [
+    {
+      "tool": "apply_changes",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "requestId": "${RUN}:init",
+        "summary": "Create example flow graph",
+        "operations": [
+          {
+            "op": "create",
+            "id": "${RUN}:graph",
+            "kind": "graph",
+            "canvasId": "${CANVAS_ID}",
+            "data": {
+              "title": "Review flow",
+              "graphType": "flow"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "flow",
+        "data": {
+          "title": "Start",
+          "body": "",
+          "graphId": "${RUN}:graph",
+          "shape": "terminal"
+        },
+        "x": 80,
+        "y": 140,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:start"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "flow",
+        "data": {
+          "title": "Prepare draft",
+          "body": "",
+          "graphId": "${RUN}:graph",
+          "shape": "process"
+        },
+        "x": 430,
+        "y": 140,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:work"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "flow",
+        "data": {
+          "title": "Approved?",
+          "body": "",
+          "graphId": "${RUN}:graph",
+          "shape": "decision"
+        },
+        "x": 780,
+        "y": 140,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:review"
+      }
+    },
+    {
+      "tool": "create_content",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}",
+        "kind": "flow",
+        "data": {
+          "title": "Complete",
+          "body": "",
+          "graphId": "${RUN}:graph",
+          "shape": "terminal"
+        },
+        "x": 1130,
+        "y": 140,
+        "width": 260,
+        "height": 150,
+        "requestId": "${RUN}:end"
+      }
+    },
+    {
+      "tool": "apply_changes",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "requestId": "${RUN}:edges",
+        "summary": "Connect flow and review loop",
+        "operations": [
+          {
+            "op": "create",
+            "id": "${RUN}:edge-1",
+            "kind": "edge",
+            "canvasId": "${CANVAS_ID}",
+            "data": {
+              "graphId": "${RUN}:graph",
+              "source": "${RUN}:start:content",
+              "target": "${RUN}:work:content",
+              "label": ""
+            }
+          },
+          {
+            "op": "create",
+            "id": "${RUN}:edge-2",
+            "kind": "edge",
+            "canvasId": "${CANVAS_ID}",
+            "data": {
+              "graphId": "${RUN}:graph",
+              "source": "${RUN}:work:content",
+              "target": "${RUN}:review:content",
+              "label": "Submit"
+            }
+          },
+          {
+            "op": "create",
+            "id": "${RUN}:edge-3",
+            "kind": "edge",
+            "canvasId": "${CANVAS_ID}",
+            "data": {
+              "graphId": "${RUN}:graph",
+              "source": "${RUN}:review:content",
+              "target": "${RUN}:end:content",
+              "label": "Yes"
+            }
+          },
+          {
+            "op": "create",
+            "id": "${RUN}:edge-4",
+            "kind": "edge",
+            "canvasId": "${CANVAS_ID}",
+            "data": {
+              "graphId": "${RUN}:graph",
+              "source": "${RUN}:review:content",
+              "target": "${RUN}:work:content",
+              "label": "No: revise"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "read_canvas",
+      "arguments": {
+        "projectId": "${PROJECT_ID}",
+        "canvasId": "${CANVAS_ID}"
+      }
+    }
+  ]
+}

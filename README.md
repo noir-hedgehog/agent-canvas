@@ -66,6 +66,16 @@ Windows：双击 `start.cmd`，或在解压目录的终端运行它。
 
 批注保存后，复制给 Agent；Agent 应先读最新对象版本，保留布局，修改原对象并回复。MCP 支持 Markdown 和 Mermaid 源码、归档状态、子画布按需读取。不要公开接入指令中的口令。撤销项目口令可终止后续授权访问；同机管理员凭据具有工作区权限。
 
+### AgentCanvas Skill（当前源码）
+
+在项目目录执行 `npm run skill:install`，把仓库中的 [agent-canvas Skill](skills/agent-canvas/SKILL.md) 链接到当前用户的 Codex 技能目录；已有不同来源的同名 Skill 不会被覆盖。安装后可在新会话中使用 `$agent-canvas`。移动项目目录后需要重新核对链接；安装 Skill 不会自动配置 MCP 或授予项目权限。
+
+Skill 包含画布使用规范、Section 操作、批注处理，以及可执行的流程图、泳道分区和思维导图范例。其他 MCP 客户端也可调用 `read_usage_guide` 获取同一份指南、能力清单和范例，无需安装 Skill。新增工具需要客户端重新发现。
+
+当前原生连线只有左侧入口、右侧出口；上下端点与自动避障尚未实现。新建原生流程图优先横向排布，已有内容保留用户布局。泳道范例通过 Section 表达职责分区，不是专门的泳道组件。Section 已支持 `create_section`、`move_section`；改名用 `update_content`，解除分组用 `apply_changes` 删除 Section 对象，保留成员卡片。
+
+开发约定见 [AGENTS.md](AGENTS.md)：功能变更同步更新 MCP、Skill 与验收。上述指南随源码和新构建的发行包提供，既有 v0.1.0 发布归档不回写。
+
 ### 数据、备份与升级
 
 数据默认在解压目录的 `.agentcanvas/`，包含数据库、图片、截图和本地凭据。文件引用指向原文件，不自动复制；移动原文件后需重新关联。

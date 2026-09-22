@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "groups": {
+    "guides": [
+      "read_usage_guide"
+    ],
+    "projects": [
+      "connect_project",
+      "list_projects",
+      "rename_project"
+    ],
+    "reading": [
+      "read_canvas",
+      "read_objects",
+      "read_requests",
+      "read_changes",
+      "list_archived"
+    ],
+    "content": [
+      "create_content",
+      "update_content",
+      "convert_card",
+      "create_diagram_card",
+      "create_child_canvas",
+      "create_relation"
+    ],
+    "sections": [
+      "create_section",
+      "move_section"
+    ],
+    "layout_and_transactions": [
+      "set_layout",
+      "apply_changes",
+      "undo_change"
+    ],
+    "discussions_and_archive": [
+      "reply_request",
+      "set_archived"
+    ],
+    "files": [
+      "import_image",
+      "reference_file",
+      "read_file_reference",
+      "read_image"
+    ]
+  },
+  "examples": [
+    "flowchart.json",
+    "swimlane.json",
+    "mind-map.json"
+  ],
+  "limits": {
+    "nativeConnectionPorts": [
+      "left:in",
+      "right:out"
+    ],
+    "topBottomPorts": false,
+    "automaticObstacleRouting": false,
+    "nestedSections": false,
+    "nativeSwimlanes": false,
+    "automaticLayoutMcpTool": false,
+    "browserReadOnlyBlocksMcp": false,
+    "mcpCreateProject": false
+  }
+}
